@@ -118,27 +118,26 @@
         let selections = {};
         let searchTimeout;
 
-        // Fallback-Daten für den Fall, dass die Suche fehlschlägt (CORS/Network Issues)
+        // Fallback-Daten inklusive Madrid
         const FALLBACK_LOCATIONS = [
             { name: "München", lat: 48.1351, lon: 11.5820 },
+            { name: "Madrid", lat: 40.4168, lon: -3.7038 },
+            { name: "Barcelona", lat: 41.3851, lon: 2.1734 },
             { name: "Innsbruck", lat: 47.2692, lon: 11.4041 },
             { name: "Bozen", lat: 46.4983, lon: 11.3548 },
-            { name: "Gardasee", lat: 45.6736, lon: 10.7062 },
-            { name: "Brenner", lat: 47.0017, lon: 11.5067 },
-            { name: "Sterzing", lat: 46.8961, lon: 11.4316 },
-            { name: "Meran", lat: 46.6701, lon: 11.1594 }
+            { name: "Gardasee", lat: 45.6736, lon: 10.7062 }
         ];
 
         const MOCK_OPTIONS = {
             restaurant: [
-                { id: 'r1', name: "Trattoria Al Biker", rating: 4.8, price: "€€", type: "Italienisch", addr: "Via Roma 12, Brenner" },
-                { id: 'r2', name: "Gasthof Alpenblick", rating: 4.2, price: "€", type: "Hausmannskost", addr: "Dorfstraße 5, Innsbruck" },
-                { id: 'r3', name: "Steakhouse Passhöhe", rating: 4.5, price: "€€€", type: "Grill", addr: "Passstraße 1, Jaufenpass" }
+                { id: 'r1', name: "Trattoria Al Biker", rating: 4.8, price: "€€", type: "Italienisch", addr: "Via Roma 12" },
+                { id: 'r2', name: "Gasthof Alpenblick", rating: 4.2, price: "€", type: "Hausmannskost", addr: "Dorfstraße 5" },
+                { id: 'r3', name: "Steakhouse Passhöhe", rating: 4.5, price: "€€€", type: "Grill", addr: "Passstraße 1" }
             ],
             hotel: [
-                { id: 'h1', name: "Grand Hotel Panorama", rating: 4.9, price: "€€€", type: "Wellness & Spa", addr: "Höhenweg 45, Sterzing", avail: "Verfügbar" },
-                { id: 'h2', name: "Biker-Motel 'Grip'", rating: 4.0, price: "€", type: "Zweckmäßig", addr: "Gewerbepark 2, Bozen", avail: "Nur noch 2 Zimmer" },
-                { id: 'h3', name: "Landhotel Post", rating: 4.4, price: "€€", type: "Traditionell", addr: "Marktplatz 1, Brixen", avail: "Verfügbar" }
+                { id: 'h1', name: "Grand Hotel Panorama", rating: 4.9, price: "€€€", type: "Wellness & Spa", addr: "Höhenweg 45", avail: "Verfügbar" },
+                { id: 'h2', name: "Biker-Motel 'Grip'", rating: 4.0, price: "€", type: "Zweckmäßig", addr: "Gewerbepark 2", avail: "Nur noch 2 Zimmer" },
+                { id: 'h3', name: "Landhotel Post", rating: 4.4, price: "€€", type: "Traditionell", addr: "Marktplatz 1", avail: "Verfügbar" }
             ],
             sight: [
                 { id: 's1', name: "Geheimer Wasserfall", rating: 4.7, price: "Gratis", type: "Natur", addr: "Waldpfad 3" },
@@ -180,7 +179,7 @@
                 currentTourData = data;
                 renderInteractiveTour();
             } catch(e) { 
-                res.innerHTML = `<div class="p-10 text-center text-red-500 font-bold">Routing fehlgeschlagen. Bitte API-Key oder Verbindung prüfen.</div>`;
+                res.innerHTML = `<div class="p-10 text-center text-red-500 font-bold">Routing fehlgeschlagen. Bitte API-Key prüfen oder versuche eine kürzere Strecke.</div>`;
             }
         }
 
@@ -193,7 +192,6 @@
             for(let d=1; d<=days; d++) {
                 const dayDiv = document.createElement('div');
                 dayDiv.className = "p-6 space-y-4 animate-fade border-b border-white/5";
-                
                 dayDiv.innerHTML = `
                     <div class="flex items-center justify-between bg-zinc-900/50 p-4 rounded-2xl border border-white/10">
                         <div class="flex items-center gap-3">
@@ -205,17 +203,14 @@
                         </button>
                     </div>
                 `;
-
                 dayDiv.appendChild(createSelectionSection(d, 'sight', 'Sehenswürdigkeit wählen'));
                 for(let m=1; m<=meals; m++) {
                     dayDiv.appendChild(createSelectionSection(d, 'restaurant_' + m, `Mahlzeit ${m}: Restaurant`));
                 }
                 dayDiv.appendChild(createSelectionSection(d, 'hotel', 'Unterkunft für die Nacht'));
-
                 container.appendChild(dayDiv);
             }
             lucide.createIcons();
-            
             if(routeLayer) map.removeLayer(routeLayer);
             routeLayer = L.geoJSON(currentTourData, {style: {color: '#ff9800', weight: 5, opacity: 0.8}}).addTo(map);
             map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
@@ -225,7 +220,6 @@
             const section = document.createElement('div');
             section.className = "space-y-3";
             section.innerHTML = `<p class="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">${title}</p>`;
-            
             const baseType = typeKey.startsWith('restaurant') ? 'restaurant' : typeKey;
             const options = MOCK_OPTIONS[baseType];
             const grid = document.createElement('div');
@@ -234,13 +228,11 @@
             options.forEach(opt => {
                 const card = document.createElement('div');
                 const isSelected = selections[day + typeKey] === opt.id;
-                
                 card.className = `selection-card p-4 rounded-xl bg-zinc-900/80 border border-white/5 hover:border-orange-500/50 ${isSelected ? 'selected shadow-lg shadow-orange-900/10' : ''}`;
                 card.onclick = () => {
                     selections[day + typeKey] = opt.id;
                     renderInteractiveTour(); 
                 };
-
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="space-y-1">
@@ -259,7 +251,6 @@
                 `;
                 grid.appendChild(card);
             });
-
             section.appendChild(grid);
             return section;
         }
@@ -269,19 +260,16 @@
             const r1Id = selections[day + 'restaurant_1'];
             const r2Id = selections[day + 'restaurant_2'];
             const sId = selections[day + 'sight'];
-            
             const hotel = MOCK_OPTIONS.hotel.find(h => h.id === hId);
             const r1 = MOCK_OPTIONS.restaurant.find(r => r.id === r1Id);
             const r2 = MOCK_OPTIONS.restaurant.find(r => r.id === r2Id);
             const sight = MOCK_OPTIONS.sight.find(s => s.id === sId);
-
             let url = "https://www.google.com/maps/dir/";
             url += encodeURIComponent(points.sName) + "/";
             if(sight) url += encodeURIComponent(sight.name + ", " + sight.addr) + "/";
             if(r1) url += encodeURIComponent(r1.name + ", " + r1.addr) + "/";
             if(r2) url += encodeURIComponent(r2.name + ", " + r2.addr) + "/";
             if(hotel) url += encodeURIComponent(hotel.name + ", " + hotel.addr) + "/";
-            
             window.open(url, '_blank');
         }
 
@@ -289,23 +277,21 @@
             clearTimeout(searchTimeout);
             const query = el.value.trim();
             const div = document.getElementById(resId);
-            
             if(query.length < 2) {
                 div.classList.add('hidden');
                 return;
             }
-
             searchTimeout = setTimeout(async () => {
                 try {
-                    // Wir versuchen die API, aber fangen Fehler ab
+                    // Nominatim verlangt einen User-Agent
                     const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`, {
-                        headers: { 'Accept-Language': 'de' }
+                        headers: { 
+                            'Accept-Language': 'de',
+                            'User-Agent': 'RidePlanPro/1.0'
+                        }
                     });
-                    
                     if (!response.ok) throw new Error("Network issues");
-                    
                     const data = await response.json();
-                    
                     if (data.length > 0) {
                         showResults(div, data.map(i => ({
                             name: i.display_name,
@@ -316,13 +302,12 @@
                         throw new Error("No results");
                     }
                 } catch (err) {
-                    // Fallback: Lokale Liste filtern
                     const filtered = FALLBACK_LOCATIONS.filter(l => 
                         l.name.toLowerCase().includes(query.toLowerCase())
                     );
                     showResults(div, filtered, resId);
                 }
-            }, 300);
+            }, 500);
         }
 
         function showResults(div, results, resId) {
@@ -344,8 +329,6 @@
             points[isStart ? 'sName' : 'eName'] = name;
             document.getElementById(isStart ? 'start-input' : 'end-input').value = name;
             document.getElementById(resId).classList.add('hidden');
-            
-            // Marker auf Karte setzen
             L.marker([coords[0], coords[1]]).addTo(map)
                 .bindPopup(name).openPopup();
             map.setView([coords[0], coords[1]], 10);
