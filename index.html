@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RidePlan Pro | Kurven-Master</title>
+    <title>RidePlan Enes | Kurven-Master</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -30,7 +30,7 @@
         }
 
         .sidebar.collapsed {
-            transform: translateX(-460px);
+            transform: translateX(-440px);
         }
 
         .sidebar-toggle {
@@ -38,23 +38,31 @@
             right: -20px;
             top: 50%;
             transform: translateY(-50%);
-            width: 40px;
-            height: 80px;
-            background: rgba(10, 10, 12, 0.95);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 32px;
+            height: 64px;
+            background: #ff9800;
+            border: none;
             border-radius: 0 12px 12px 0;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 1001;
-            color: var(--biker-orange);
+            color: black;
             box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+
+        .sidebar-toggle:hover {
+            background: #ffa726;
+            width: 36px;
         }
 
         @media (max-width: 640px) {
             .sidebar { top: 0; left: 0; right: 0; bottom: 0; width: 100%; border-radius: 0; }
             .sidebar.collapsed { transform: translateX(-100%); }
+            .sidebar-toggle { right: 0; border-radius: 12px 0 0 12px; }
         }
 
         .search-results {
@@ -108,7 +116,14 @@
 
         input[type="range"] { accent-color: var(--biker-orange); }
         
-        .leaflet-control-attribution { background: rgba(0,0,0,0.5) !important; color: #ccc !important; font-size: 9px !important; border: none !important; }
+        .sidebar-content-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-radius: 0 0 24px 24px;
+        }
     </style>
 </head>
 <body>
@@ -116,15 +131,16 @@
     <div id="map"></div>
 
     <aside id="main-sidebar" class="sidebar">
-        <button onclick="toggleSidebar()" class="sidebar-toggle" title="Menü ein/ausklappen">
+        <button onclick="toggleSidebar()" class="sidebar-toggle" id="btn-sidebar-toggle">
             <i id="toggle-icon" data-lucide="chevron-left"></i>
         </button>
 
+        <!-- Header -->
         <div class="p-6 border-b border-white/5 flex justify-between items-center">
             <div>
                 <div class="flex items-center gap-3 mb-1">
                     <div class="bg-orange-500 p-2 rounded-lg"><i data-lucide="map" class="text-black w-5 h-5"></i></div>
-                    <h1 class="text-xl font-black italic uppercase tracking-tighter text-white">RidePlan <span class="text-orange-500">Pro</span></h1>
+                    <h1 class="text-xl font-black italic uppercase tracking-tighter text-white">RidePlan <span class="text-orange-500">Enes</span></h1>
                 </div>
                 <p class="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Motorrad-Routing Engine</p>
             </div>
@@ -138,83 +154,89 @@
             </div>
         </div>
 
-        <div id="project-modal" class="modal-overlay">
-            <div class="w-full max-w-[340px] p-6 bg-zinc-900 rounded-3xl border border-white/10 shadow-2xl">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-orange-500">Meine Touren</h3>
-                    <button onclick="toggleProjects()" class="p-1 hover:bg-white/5 rounded-full"><i data-lucide="x" class="w-4 h-4"></i></button>
+        <div class="sidebar-content-wrapper custom-scrollbar">
+            <!-- Projekt Modal -->
+            <div id="project-modal" class="modal-overlay">
+                <div class="w-full max-w-[340px] p-6 bg-zinc-900 rounded-3xl border border-white/10 shadow-2xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xs font-black uppercase tracking-widest text-orange-500">Meine Touren</h3>
+                        <button onclick="toggleProjects()" class="p-1 hover:bg-white/5 rounded-full"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    </div>
+                    <div class="space-y-2 mb-6">
+                        <label class="text-[8px] font-bold uppercase text-zinc-500 tracking-widest">Aktuelle Tour speichern</label>
+                        <div class="flex gap-2">
+                            <input id="project-name" type="text" placeholder="Name der Tour..." class="flex-1 bg-white/5 border border-white/10 rounded-xl p-2 text-[11px] text-white focus:border-orange-500 outline-none">
+                            <button onclick="saveProjectInternal()" class="bg-orange-500 text-black px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-orange-400 transition-colors">Save</button>
+                        </div>
+                    </div>
+                    <div class="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar" id="project-list"></div>
                 </div>
-                <div class="space-y-2 mb-6">
-                    <label class="text-[8px] font-bold uppercase text-zinc-500 tracking-widest">Aktuelle Tour speichern</label>
-                    <div class="flex gap-2">
-                        <input id="project-name" type="text" placeholder="Name der Tour..." class="flex-1 bg-white/5 border border-white/10 rounded-xl p-2 text-[11px] text-white focus:border-orange-500 outline-none">
-                        <button onclick="saveProjectInternal()" class="bg-orange-500 text-black px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-orange-400 transition-colors">Save</button>
+            </div>
+
+            <!-- Scrollable Content -->
+            <div class="p-6 space-y-6">
+                <!-- Route Section -->
+                <div class="space-y-4">
+                    <div class="relative">
+                        <label class="text-[9px] font-black uppercase text-green-500 mb-1 block tracking-widest">Startort</label>
+                        <div class="relative">
+                            <input id="start-input" oninput="debouncedSearch(this, 'start-res')" autocomplete="off" type="text" placeholder="Ort oder 'Lat, Lon'..." class="w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-10 text-sm focus:border-orange-500 outline-none text-white">
+                            <i data-lucide="play" class="absolute left-3 top-3.5 w-4 h-4 text-green-500"></i>
+                            <div id="start-res" class="search-results hidden"></div>
+                        </div>
+                    </div>
+
+                    <div id="waypoints-list" class="space-y-3"></div>
+
+                    <button onclick="addNewWaypoint()" class="w-full py-2 border border-dashed border-white/10 rounded-xl text-[10px] font-bold uppercase text-zinc-500 hover:text-white hover:border-white/20 flex items-center justify-center gap-2">
+                        <i data-lucide="plus-circle" class="w-3 h-3"></i> Zwischenstopp hinzufügen
+                    </button>
+
+                    <div class="relative">
+                        <label class="text-[9px] font-black uppercase text-red-500 mb-1 block tracking-widest">Zielort</label>
+                        <div class="relative">
+                            <input id="end-input" oninput="debouncedSearch(this, 'end-res')" autocomplete="off" type="text" placeholder="Ort oder 'Lat, Lon'..." class="w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-10 text-sm focus:border-orange-500 outline-none text-white">
+                            <i data-lucide="flag" class="absolute left-3 top-3.5 w-4 h-4 text-red-500"></i>
+                            <div id="end-res" class="search-results hidden"></div>
+                        </div>
                     </div>
                 </div>
-                <div class="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar" id="project-list"></div>
+
+                <!-- Routing Parameter -->
+                <div class="space-y-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+                    <h3 class="text-[10px] font-black uppercase tracking-widest text-orange-500">Routing-Optionen</h3>
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold uppercase text-zinc-400">Kurvigkeit</span>
+                            <span id="curvy-label" class="text-[10px] font-black text-orange-500 uppercase">Fast & Curvy</span>
+                        </div>
+                        <input type="range" id="curviness" min="1" max="5" value="2" oninput="updateCurvyLabel(this.value)" class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold uppercase text-zinc-400">Autobahn vermeiden</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="avoid-highways" class="sr-only peer" checked>
+                            <div class="w-8 h-4 bg-zinc-700 rounded-full peer peer-checked:bg-orange-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div>
+                        </label>
+                    </div>
+                    <div class="pt-2 border-t border-white/5">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold uppercase text-zinc-400">Max. KM / Tag</span>
+                            <span id="km-label" class="text-[10px] font-black text-white">350 km</span>
+                        </div>
+                        <input type="range" id="max-km" min="100" max="800" step="50" value="350" oninput="document.getElementById('km-label').innerText = this.value + ' km'" class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+
+                <div id="status-box" class="hidden p-4 rounded-xl border border-orange-500/30 bg-orange-500/5 flex items-center gap-3">
+                    <div class="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-[10px] font-black uppercase text-orange-500 tracking-widest">Berechne Route...</span>
+                </div>
             </div>
         </div>
 
-        <div class="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
-            
-            <div class="space-y-4">
-                <div class="relative">
-                    <label class="text-[9px] font-black uppercase text-green-500 mb-1 block tracking-widest">Startort (Name oder Koordinaten)</label>
-                    <div class="relative">
-                        <input id="start-input" oninput="debouncedSearch(this, 'start-res')" autocomplete="off" type="text" placeholder="Ort oder 'Lat, Lon'..." class="w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-10 text-sm focus:border-orange-500 outline-none text-white">
-                        <i data-lucide="play" class="absolute left-3 top-3.5 w-4 h-4 text-green-500"></i>
-                        <div id="start-res" class="search-results hidden"></div>
-                    </div>
-                </div>
-
-                <div id="waypoints-list" class="space-y-3"></div>
-
-                <button onclick="addNewWaypoint()" class="w-full py-2 border border-dashed border-white/10 rounded-xl text-[10px] font-bold uppercase text-zinc-500 hover:text-white hover:border-white/20 flex items-center justify-center gap-2">
-                    <i data-lucide="plus-circle" class="w-3 h-3"></i> Zwischenstopp hinzufügen
-                </button>
-
-                <div class="relative">
-                    <label class="text-[9px] font-black uppercase text-red-500 mb-1 block tracking-widest">Zielort (Name oder Koordinaten)</label>
-                    <div class="relative">
-                        <input id="end-input" oninput="debouncedSearch(this, 'end-res')" autocomplete="off" type="text" placeholder="Ort oder 'Lat, Lon'..." class="w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-10 text-sm focus:border-orange-500 outline-none text-white">
-                        <i data-lucide="flag" class="absolute left-3 top-3.5 w-4 h-4 text-red-500"></i>
-                        <div id="end-res" class="search-results hidden"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="space-y-4 p-4 bg-white/5 rounded-2xl border border-white/5">
-                <h3 class="text-[10px] font-black uppercase tracking-widest text-orange-500">Routing-Optionen</h3>
-                <div>
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-[10px] font-bold uppercase text-zinc-400">Kurvigkeit</span>
-                        <span id="curvy-label" class="text-[10px] font-black text-orange-500 uppercase">Fast & Curvy</span>
-                    </div>
-                    <input type="range" id="curviness" min="1" max="5" value="2" oninput="updateCurvyLabel(this.value)" class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer">
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-bold uppercase text-zinc-400">Autobahn vermeiden</span>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="avoid-highways" class="sr-only peer" checked>
-                        <div class="w-8 h-4 bg-zinc-700 rounded-full peer peer-checked:bg-orange-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div>
-                    </label>
-                </div>
-                <div class="pt-2 border-t border-white/5">
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="text-[10px] font-bold uppercase text-zinc-400">Max. KM / Tag</span>
-                        <span id="km-label" class="text-[10px] font-black text-white">350 km</span>
-                    </div>
-                    <input type="range" id="max-km" min="100" max="800" step="50" value="350" oninput="document.getElementById('km-label').innerText = this.value + ' km'" class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer">
-                </div>
-            </div>
-
-            <div id="status-box" class="hidden p-4 rounded-xl border border-orange-500/30 bg-orange-500/5 flex items-center gap-3">
-                <div class="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                <span class="text-[10px] font-black uppercase text-orange-500 tracking-widest">Berechne Route...</span>
-            </div>
-        </div>
-
-        <div class="p-6 bg-black/80 border-t border-white/5 space-y-3">
+        <!-- Summary & Final Actions -->
+        <div class="p-6 bg-black border-t border-white/5 space-y-3 rounded-b-3xl">
             <div id="stats-panel" class="hidden grid grid-cols-3 gap-2 mb-2">
                 <div class="bg-white/5 p-2 rounded-xl text-center border border-white/5">
                     <p class="text-[7px] text-zinc-500 uppercase font-black tracking-widest">Distanz</p>
@@ -252,11 +274,11 @@
             map = L.map('map', { zoomControl: false, attributionControl: true }).setView([51.1657, 10.4515], 6);
             
             const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: 'Tiles &copy; Esri &mdash; Source: Esri'
+                attribution: 'Tiles &copy; Esri'
             });
 
             const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                attribution: '&copy; CARTO',
                 subdomains: 'abcd',
                 maxZoom: 20
             });
@@ -271,20 +293,17 @@
             renderProjectList();
         }
 
-        // Neu: Sidebar Toggle Funktion
         function toggleSidebar() {
             const sidebar = document.getElementById('main-sidebar');
             const icon = document.getElementById('toggle-icon');
-            sidebar.classList.toggle('collapsed');
+            const isCollapsed = sidebar.classList.toggle('collapsed');
             
-            if (sidebar.classList.contains('collapsed')) {
+            if (isCollapsed) {
                 icon.setAttribute('data-lucide', 'chevron-right');
             } else {
                 icon.setAttribute('data-lucide', 'chevron-left');
             }
             lucide.createIcons();
-            
-            // Karte an Fenstergröße anpassen nach Animation
             setTimeout(() => map.invalidateSize(), 400);
         }
 
@@ -294,9 +313,7 @@
             if (match) {
                 const lat = parseFloat(match[1]);
                 const lon = parseFloat(match[2]);
-                if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-                    return [lon, lat];
-                }
+                if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) return [lon, lat];
             }
             return null;
         }
@@ -376,7 +393,7 @@
         function exportJSON() {
             const data = { start: startPoint, end: endPoint, waypoints, settings: { curviness: document.getElementById('curviness').value, maxKm: document.getElementById('max-km').value, avoid: document.getElementById('avoid-highways').checked } };
             const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Tour_Backup.json'; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'RidePlan_Enes_Backup.json'; a.click();
         }
 
         function updateCurvyLabel(val) {
@@ -388,27 +405,17 @@
             clearTimeout(searchTimeout);
             const val = input.value.trim();
             const resDiv = document.getElementById(resId);
-            
-            if (!val) {
-                resDiv.classList.add('hidden');
-                return;
-            }
-
+            if (!val) { resDiv.classList.add('hidden'); return; }
             const coords = parseCoords(val);
             if (coords) {
                 resDiv.innerHTML = `
                 <div onclick="selectLocation('${resId}', '${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}', ${coords[0]}, ${coords[1]}, ${index})" 
                      class="p-3 bg-orange-500/20 text-orange-500 cursor-pointer text-[11px] font-bold border-b border-orange-500/20 transition-colors">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="crosshair" class="w-3 h-3"></i>
-                        <span>Koordinaten verwenden: ${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}</span>
-                    </div>
+                    <span>Koordinaten verwenden: ${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}</span>
                 </div>`;
                 resDiv.classList.remove('hidden');
-                lucide.createIcons();
                 return;
             }
-
             searchTimeout = setTimeout(() => handleSearch(input, resId, index), 350);
         }
 
@@ -416,72 +423,43 @@
             const query = input.value.trim();
             const resDiv = document.getElementById(resId);
             if (query.length < 2) { resDiv.classList.add('hidden'); return; }
-
             try {
                 const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lang=de`;
                 const r = await fetch(url);
-                if (!r.ok) throw new Error('Search API Error');
                 const data = await r.json();
-                
-                let html = "";
-                if (!data.features || data.features.length === 0) {
-                    html = `<div class="p-3 text-[11px] text-zinc-500 italic text-center">Keine Treffer</div>`;
-                } else {
-                    html = data.features.map(f => {
-                        const p = f.properties;
-                        const label = [p.name, p.city, p.country].filter(Boolean).join(', ');
-                        const [lon, lat] = f.geometry.coordinates;
-                        return `
-                        <div onclick="selectLocation('${resId}', '${p.name || p.city}', ${lon}, ${lat}, ${index})" 
-                             class="p-3 hover:bg-orange-500 hover:text-black cursor-pointer text-[11px] font-bold text-zinc-300 border-b border-white/5 transition-colors">
-                            <div class="truncate text-white group-hover:text-black">${label}</div>
-                            <div class="text-[9px] opacity-60 font-normal italic uppercase">${p.state || p.postcode || ''}</div>
-                        </div>`;
-                    }).join('');
-                }
-                resDiv.innerHTML = html;
+                let html = data.features.map(f => {
+                    const p = f.properties;
+                    const label = [p.name, p.city].filter(Boolean).join(', ');
+                    const [lon, lat] = f.geometry.coordinates;
+                    return `<div onclick="selectLocation('${resId}', '${p.name || p.city}', ${lon}, ${lat}, ${index})" class="p-3 hover:bg-orange-500 hover:text-black cursor-pointer text-[11px] font-bold text-zinc-300 border-b border-white/5 truncate">${label}</div>`;
+                }).join('');
+                resDiv.innerHTML = html || `<div class="p-3 text-zinc-500 italic">Keine Treffer</div>`;
                 resDiv.classList.remove('hidden');
-            } catch (err) {
-                resDiv.innerHTML = `<div class="p-3 text-[11px] text-red-400 italic">Fehler beim Laden...</div>`;
-                resDiv.classList.remove('hidden');
-            }
+            } catch (err) { resDiv.classList.add('hidden'); }
         }
 
         function selectLocation(resId, name, lon, lat, index) {
             const obj = { coords: [lon, lat], name: name, type: 'stop' };
-            if (resId === 'start-res') {
-                startPoint = obj;
-                document.getElementById('start-input').value = name;
-            } else if (resId === 'end-res') {
-                endPoint = obj;
-                document.getElementById('end-input').value = name;
-            } else {
-                waypoints[index] = obj;
-                document.getElementById(`wp-input-${index}`).value = name;
-            }
+            if (resId === 'start-res') { startPoint = obj; document.getElementById('start-input').value = name; }
+            else if (resId === 'end-res') { endPoint = obj; document.getElementById('end-input').value = name; }
+            else { waypoints[index] = obj; document.getElementById(`wp-input-${index}`).value = name; }
             document.getElementById(resId).classList.add('hidden');
             renderMarkers();
             if (startPoint && endPoint) calculateRoute(true);
         }
 
         function addAtCoords(lon, lat) {
-            const index = waypoints.length;
             waypoints.push({ coords: [lon, lat], name: `${lat.toFixed(4)}, ${lon.toFixed(4)}`, type: 'stop' });
-            renderWaypoints();
-            renderMarkers();
+            renderWaypoints(); renderMarkers();
             if (startPoint && endPoint) calculateRoute(false); 
         }
 
-        function addNewWaypoint() {
-            waypoints.push(null);
-            renderWaypoints();
-        }
+        function addNewWaypoint() { waypoints.push(null); renderWaypoints(); }
 
         function togglePointType(index) {
             if (!waypoints[index]) return;
             waypoints[index].type = waypoints[index].type === 'stop' ? 'shaping' : 'stop';
-            renderWaypoints();
-            renderMarkers();
+            renderWaypoints(); renderMarkers();
             if (startPoint && endPoint) calculateRoute(false);
         }
 
@@ -493,7 +471,6 @@
                 div.className = "waypoint-card p-3 rounded-xl relative group";
                 const typeIcon = wp?.type === 'shaping' ? 'circle' : 'map-pin';
                 const typeColor = wp?.type === 'shaping' ? 'text-zinc-500' : 'text-orange-500';
-                
                 div.innerHTML = `
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-[8px] font-black uppercase text-zinc-600">Stop ${i+1}</span>
@@ -502,54 +479,34 @@
                         </button>
                     </div>
                     <div class="relative">
-                        <input id="wp-input-${i}" oninput="debouncedSearch(this, 'wp-res-${i}', ${i})" value="${wp ? wp.name : ''}" autocomplete="off" type="text" placeholder="Ort oder 'Lat, Lon'..." class="w-full bg-black/40 border border-white/5 rounded-lg p-2 pl-8 text-xs text-white focus:border-orange-500/50 outline-none">
+                        <input id="wp-input-${i}" oninput="debouncedSearch(this, 'wp-res-${i}', ${i})" value="${wp ? wp.name : ''}" autocomplete="off" type="text" placeholder="Ort..." class="w-full bg-black/40 border border-white/5 rounded-lg p-2 pl-8 text-xs text-white focus:border-orange-500/50 outline-none">
                         <i data-lucide="${typeIcon}" class="absolute left-2.5 top-2.5 w-3.5 h-3.5 ${typeColor}"></i>
                         <button onclick="removeWaypoint(${i})" class="absolute right-2 top-2 text-zinc-600 hover:text-red-500"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
                         <div id="wp-res-${i}" class="search-results hidden"></div>
-                    </div>
-                `;
+                    </div>`;
                 container.appendChild(div);
             });
             lucide.createIcons();
         }
 
-        function removeWaypoint(index) {
-            waypoints.splice(index, 1);
-            renderWaypoints();
-            renderMarkers();
-            if (startPoint && endPoint) calculateRoute(false);
-        }
-
-        function sortWaypoints() {
-            if (!startPoint || waypoints.length < 2) return;
-            let validWps = waypoints.filter(wp => wp !== null);
-            if (validWps.length < 2) return;
-            validWps.sort((a, b) => {
-                const distA = Math.sqrt(Math.pow(a.coords[0] - startPoint.coords[0], 2) + Math.pow(a.coords[1] - startPoint.coords[1], 2));
-                const distB = Math.sqrt(Math.pow(b.coords[0] - startPoint.coords[0], 2) + Math.pow(b.coords[1] - startPoint.coords[1], 2));
-                return distA - distB;
-            });
-            waypoints = validWps;
-        }
+        function removeWaypoint(index) { waypoints.splice(index, 1); renderWaypoints(); renderMarkers(); if (startPoint && endPoint) calculateRoute(false); }
 
         function renderMarkers() {
             markers.forEach(m => map.removeLayer(m));
             markers = [];
-            
             const addMarker = (coords, label, color, isDraggable = true, index = -1) => {
                 const pinHtml = `<div class="custom-pin"><div class="pin-drop" style="background: ${color}"><div class="pin-label">${label}</div></div></div>`;
                 const m = L.marker([coords[1], coords[0]], {
                     draggable: isDraggable,
                     icon: L.divIcon({ html: pinHtml, className: '', iconSize: [32, 32], iconAnchor: [16, 32] })
                 }).addTo(map);
-                m.on('dragend', function(e) {
+                m.on('dragend', (e) => {
                     const { lat, lng } = e.target.getLatLng();
-                    const newName = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-                    if (index === -100) { startPoint = { coords: [lng, lat], name: newName, type: 'stop' }; document.getElementById('start-input').value = newName; }
-                    else if (index === -200) { endPoint = { coords: [lng, lat], name: newName, type: 'stop' }; document.getElementById('end-input').value = newName; }
-                    else { waypoints[index] = { coords: [lng, lat], name: newName, type: waypoints[index]?.type || 'stop' }; sortWaypoints(); }
-                    renderWaypoints(); renderMarkers();
-                    if (startPoint && endPoint) calculateRoute(false);
+                    const n = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                    if (index === -100) { startPoint = { coords: [lng, lat], name: n, type: 'stop' }; document.getElementById('start-input').value = n; }
+                    else if (index === -200) { endPoint = { coords: [lng, lat], name: n, type: 'stop' }; document.getElementById('end-input').value = n; }
+                    else { waypoints[index] = { coords: [lng, lat], name: n, type: waypoints[index]?.type || 'stop' }; }
+                    renderWaypoints(); renderMarkers(); if (startPoint && endPoint) calculateRoute(false);
                 });
                 markers.push(m);
             };
@@ -560,46 +517,39 @@
 
         async function calculateRoute(shouldFitBounds = false) {
             if (!startPoint || !endPoint) return;
-            const status = document.getElementById('status-box');
-            status.classList.remove('hidden');
+            document.getElementById('status-box').classList.remove('hidden');
             const validWaypoints = waypoints.filter(w => w && w.coords);
             const allCoords = [startPoint.coords, ...validWaypoints.map(w => w.coords), endPoint.coords];
             const avoid = document.getElementById('avoid-highways').checked ? ["highways", "tollways"] : [];
-            const curvinessVal = parseInt(document.getElementById('curviness').value);
-            const preference = curvinessVal > 3 ? 'recommended' : 'fastest';
-
+            const preference = parseInt(document.getElementById('curviness').value) > 3 ? 'recommended' : 'fastest';
             try {
                 const res = await fetch(`https://api.openrouteservice.org/v2/directions/driving-car/geojson`, {
                     method: 'POST',
                     headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ coordinates: allCoords, preference: preference, options: { avoid_features: avoid } })
                 });
-                if (!res.ok) throw new Error('Route nicht möglich');
                 const data = await res.json();
                 currentGeojson = data;
                 if (routeLayer) map.removeLayer(routeLayer);
                 routeLayer = L.geoJSON(data, { style: { color: '#ff9800', weight: 6, opacity: 0.8 } }).addTo(map);
                 if (shouldFitBounds) map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
-                const stats = data.features[0].properties.summary;
-                const distKm = (stats.distance / 1000).toFixed(1);
-                document.getElementById('stat-total-dist').innerText = distKm + " km";
-                document.getElementById('stat-total-time').innerText = Math.round(stats.duration / 3600) + "h";
-                document.getElementById('stat-days').innerText = Math.ceil(distKm / parseInt(document.getElementById('max-km').value));
+                const s = data.features[0].properties.summary;
+                const d = (s.distance / 1000).toFixed(1);
+                document.getElementById('stat-total-dist').innerText = d + " km";
+                document.getElementById('stat-total-time').innerText = Math.round(s.duration / 3600) + "h";
+                document.getElementById('stat-days').innerText = Math.ceil(d / parseInt(document.getElementById('max-km').value));
                 document.getElementById('stats-panel').classList.remove('hidden');
                 document.getElementById('gpx-btn').classList.remove('hidden');
-            } catch (e) { console.error(e); } finally { status.classList.add('hidden'); }
+            } catch (e) { } finally { document.getElementById('status-box').classList.add('hidden'); }
         }
 
         function exportGPX() {
             if (!currentGeojson) return;
             const coords = currentGeojson.features[0].geometry.coordinates;
-            let gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="RidePlan Pro" xmlns="http://www.topografix.com/GPX/1/1">`;
-            gpx += `\n<trk><name>RidePlan Route</name><trkseg>`;
+            let gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="RidePlan Enes" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>RidePlan Route</name><trkseg>`;
             coords.forEach(c => { gpx += `\n<trkpt lat="${c[1]}" lon="${c[0]}"></trkpt>`; });
             gpx += `\n</trkseg></trk></gpx>`;
-            const blob = new Blob([gpx], { type: 'application/gpx+xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `Route_${new Date().toISOString().slice(0,10)}.gpx`; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([gpx], { type: 'application/gpx+xml' })); a.download = `Route_Enes.gpx`; a.click();
         }
 
         window.onload = init;
