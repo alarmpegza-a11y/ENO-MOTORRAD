@@ -3,587 +3,603 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RidePlan Pro | Cloud Experience</title>
+    <title>RidePlan Pro | Kurven-Master</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, query, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDBsPnNY8cQ3Mt2gwKf3ovjGV9lj5MQdFo",
-            authDomain: "eno-motorrad.firebaseapp.com",
-            projectId: "eno-motorrad",
-            storageBucket: "eno-motorrad.firebasestorage.app",
-            messagingSenderId: "759776073053",
-            appId: "1:759776073053:web:74b39de61e6730e12f84b4"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'eno-motorrad-web';
-
-        window.fb = { 
-            auth, db, appId, doc, setDoc, getDoc, collection, 
-            onSnapshot, query, addDoc, deleteDoc, 
-            signInAnonymously, signInWithCustomToken, onAuthStateChanged 
-        };
-    </script>
-
     <style>
-        :root { --biker-orange: #ff9800; --biker-dark: #09090b; }
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; font-family: ui-sans-serif, system-ui, sans-serif; color-scheme: dark; }
+        :root { --biker-orange: #ff9800; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; font-family: ui-sans-serif, system-ui, sans-serif; color: white; }
         
-        #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1; }
-        .leaflet-tile-pane { filter: brightness(0.6) contrast(1.2) saturate(0.6); }
+        #map { 
+            position: absolute; top: 0; bottom: 0; left: 0; right: 0; 
+            z-index: 1; 
+            background: #111;
+        }
+        
+        .leaflet-container { background: #111 !important; }
 
-        .floating-sidebar {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            bottom: 20px;
-            width: 420px;
-            z-index: 1000;
-            background: rgba(12, 12, 14, 0.9);
-            backdrop-filter: blur(32px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 24px;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        .sidebar {
+            position: absolute; top: 20px; left: 20px; bottom: 20px; width: 420px;
+            z-index: 1000; background: rgba(10, 10, 12, 0.85); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px;
+            display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
             transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        @media (max-width: 640px) {
-            .floating-sidebar { top: 10px; left: 10px; right: 10px; width: auto; bottom: 10px; }
-            .sidebar-collapsed { transform: translateY(calc(100% - 60px)); }
-            .collapse-btn { right: 20px !important; top: -50px !important; transform: rotate(90deg); }
+        .sidebar.collapsed {
+            transform: translateX(-460px);
         }
 
-        .sidebar-collapsed { transform: translateX(-440px); }
-
-        .collapse-btn {
+        .sidebar-toggle {
             position: absolute;
-            right: -50px;
-            top: 20px;
+            right: -20px;
+            top: 50%;
+            transform: translateY(-50%);
             width: 40px;
-            height: 40px;
-            background: var(--biker-orange);
-            border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; box-shadow: 0 4px 15px rgba(255,152,0,0.3);
+            height: 80px;
+            background: rgba(10, 10, 12, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0 12px 12px 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             z-index: 1001;
+            color: var(--biker-orange);
+            box-shadow: 5px 0 15px rgba(0,0,0,0.3);
         }
 
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,152,0,0.3); border-radius: 10px; }
-        
-        .tab-btn.active { color: var(--biker-orange); border-bottom: 2px solid var(--biker-orange); }
-        
-        .waypoint-badge { 
-            background: var(--biker-orange); color: black; border-radius: 50%; width: 28px; height: 28px; 
-            display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; 
-            border: 2px solid #000; box-shadow: 0 0 15px rgba(255,152,0,0.6); 
+        @media (max-width: 640px) {
+            .sidebar { top: 0; left: 0; right: 0; bottom: 0; width: 100%; border-radius: 0; }
+            .sidebar.collapsed { transform: translateX(-100%); }
         }
 
         .search-results {
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 100%;
-            z-index: 2000;
-            background: #18181b;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
-            margin-top: 4px;
-            max-height: 250px;
-            overflow-y: auto;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: absolute; left: 0; right: 0; top: 100%; z-index: 2000;
+            background: #1f1f23; border: 1px solid #ff980055; border-radius: 12px;
+            margin-top: 8px; max-height: 250px; overflow-y: auto;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
         }
 
-        .btn-delete { color: rgba(239, 68, 68, 0.4); transition: all 0.2s; cursor: pointer; }
-        .btn-delete:hover { color: #ef4444; transform: scale(1.2); }
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+            z-index: 2000; display: none; align-items: center; justify-content: center;
+            border-radius: 24px;
+        }
 
-        /* Animation für Listen-Items */
-        .list-item-anim { animation: slideIn 0.3s ease-out forwards; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .waypoint-card {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.2s;
+        }
+
+        .custom-pin {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+        }
+
+        .pin-drop {
+            width: 32px;
+            height: 32px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #000;
+        }
+
+        .pin-label {
+            transform: rotate(45deg);
+            color: black;
+            font-weight: 900;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+
+        input[type="range"] { accent-color: var(--biker-orange); }
+        
+        .leaflet-control-attribution { background: rgba(0,0,0,0.5) !important; color: #ccc !important; font-size: 9px !important; border: none !important; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <aside id="sidebar" class="floating-sidebar">
-        <div class="collapse-btn" onclick="toggleSidebar()">
-            <i data-lucide="chevron-left" id="toggle-icon" class="text-black w-5 h-5"></i>
-        </div>
+    <aside id="main-sidebar" class="sidebar">
+        <button onclick="toggleSidebar()" class="sidebar-toggle" title="Menü ein/ausklappen">
+            <i id="toggle-icon" data-lucide="chevron-left"></i>
+        </button>
 
-        <!-- Header -->
-        <div class="p-6 border-b border-white/10">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-3">
-                    <div class="bg-orange-600 p-2 rounded-lg shadow-inner">
-                        <i data-lucide="map-pin" class="text-black w-5 h-5"></i>
-                    </div>
-                    <h1 class="text-xl font-black tracking-tighter uppercase italic text-white">RidePlan <span class="text-orange-500">Pro</span></h1>
+        <div class="p-6 border-b border-white/5 flex justify-between items-center">
+            <div>
+                <div class="flex items-center gap-3 mb-1">
+                    <div class="bg-orange-500 p-2 rounded-lg"><i data-lucide="map" class="text-black w-5 h-5"></i></div>
+                    <h1 class="text-xl font-black italic uppercase tracking-tighter text-white">RidePlan <span class="text-orange-500">Pro</span></h1>
                 </div>
-                <div id="user-status" class="text-[8px] text-zinc-500 font-mono uppercase tracking-widest text-right">Verbindung...</div>
+                <p class="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Motorrad-Routing Engine</p>
             </div>
-
-            <div id="status-bar" class="hidden flex items-center gap-3 p-3 bg-orange-500/10 rounded-xl border border-orange-500/20 mb-2">
-                <div class="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                <span id="status-text" class="text-[10px] font-black uppercase text-orange-500 tracking-widest">Berechne...</span>
+            <div class="flex gap-2">
+                <button onclick="toggleProjects()" title="Meine Touren" class="p-2 bg-orange-500/10 hover:bg-orange-500/20 rounded-lg transition-colors border border-orange-500/20">
+                    <i data-lucide="folder" class="w-4 h-4 text-orange-500"></i>
+                </button>
+                <button onclick="exportJSON()" title="Backup exportieren" class="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                    <i data-lucide="download" class="w-4 h-4 text-zinc-400"></i>
+                </button>
             </div>
         </div>
 
-        <!-- Navigation -->
-        <div class="flex border-b border-white/5 bg-black/20">
-            <button onclick="switchTab('plan')" id="tab-plan" class="tab-btn active flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400">Route</button>
-            <button onclick="switchTab('detail')" id="tab-detail" class="tab-btn flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400">Entdeckungen</button>
-            <button onclick="switchTab('projects')" id="tab-projects" class="tab-btn flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-400">Projekte</button>
+        <div id="project-modal" class="modal-overlay">
+            <div class="w-full max-w-[340px] p-6 bg-zinc-900 rounded-3xl border border-white/10 shadow-2xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-orange-500">Meine Touren</h3>
+                    <button onclick="toggleProjects()" class="p-1 hover:bg-white/5 rounded-full"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div class="space-y-2 mb-6">
+                    <label class="text-[8px] font-bold uppercase text-zinc-500 tracking-widest">Aktuelle Tour speichern</label>
+                    <div class="flex gap-2">
+                        <input id="project-name" type="text" placeholder="Name der Tour..." class="flex-1 bg-white/5 border border-white/10 rounded-xl p-2 text-[11px] text-white focus:border-orange-500 outline-none">
+                        <button onclick="saveProjectInternal()" class="bg-orange-500 text-black px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-orange-400 transition-colors">Save</button>
+                    </div>
+                </div>
+                <div class="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar" id="project-list"></div>
+            </div>
         </div>
 
-        <!-- Content Area -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <div class="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
             
-            <!-- Tab: Plan -->
-            <div id="panel-plan" class="space-y-6">
-                <div class="space-y-4">
-                    <div class="relative group">
-                        <input id="start-input" oninput="searchLoc(this, 'start-res')" autocomplete="off" type="text" placeholder="Startpunkt..." class="w-full bg-white/5 border border-white/10 rounded-xl p-4 pl-10 text-sm text-white focus:border-orange-500 focus:bg-white/10 outline-none transition-all">
-                        <i data-lucide="play" class="absolute left-3 top-4 w-4 h-4 text-green-500"></i>
-                        <div id="start-res" class="search-results hidden custom-scrollbar"></div>
-                    </div>
-                    <div class="relative group">
-                        <input id="end-input" oninput="searchLoc(this, 'end-res')" autocomplete="off" type="text" placeholder="Zielort..." class="w-full bg-white/5 border border-white/10 rounded-xl p-4 pl-10 text-sm text-white focus:border-orange-500 focus:bg-white/10 outline-none transition-all">
-                        <i data-lucide="flag" class="absolute left-3 top-4 w-4 h-4 text-red-500"></i>
-                        <div id="end-res" class="search-results hidden custom-scrollbar"></div>
+            <div class="space-y-4">
+                <div class="relative">
+                    <label class="text-[9px] font-black uppercase text-green-500 mb-1 block tracking-widest">Startort (Name oder Koordinaten)</label>
+                    <div class="relative">
+                        <input id="start-input" oninput="debouncedSearch(this, 'start-res')" autocomplete="off" type="text" placeholder="Ort oder 'Lat, Lon'..." class="w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-10 text-sm focus:border-orange-500 outline-none text-white">
+                        <i data-lucide="play" class="absolute left-3 top-3.5 w-4 h-4 text-green-500"></i>
+                        <div id="start-res" class="search-results hidden"></div>
                     </div>
                 </div>
 
-                <div id="waypoints-list" class="space-y-3 min-h-[50px]">
-                    <!-- Waypoints appear here -->
-                </div>
+                <div id="waypoints-list" class="space-y-3"></div>
 
-                <div class="flex gap-2 pt-2">
-                    <button onclick="runAdvancedRouting()" class="flex-1 py-4 bg-orange-600 hover:bg-orange-500 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                        <i data-lucide="zap" class="w-4 h-4"></i> Tour berechnen
-                    </button>
-                    <button id="save-btn" disabled onclick="saveCurrentProject()" class="px-5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed border border-white/5">
-                        <i data-lucide="save" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                
-                <div id="error-message" class="hidden p-4 rounded-xl text-[11px] font-bold border animate-pulse"></div>
-            </div>
+                <button onclick="addNewWaypoint()" class="w-full py-2 border border-dashed border-white/10 rounded-xl text-[10px] font-bold uppercase text-zinc-500 hover:text-white hover:border-white/20 flex items-center justify-center gap-2">
+                    <i data-lucide="plus-circle" class="w-3 h-3"></i> Zwischenstopp hinzufügen
+                </button>
 
-            <!-- Tab: Details -->
-            <div id="panel-detail" class="hidden space-y-6">
-                <div id="pois-results" class="space-y-8">
-                    <p class="text-center text-zinc-600 text-[10px] py-20 uppercase font-black tracking-widest">Route berechnen für POIs</p>
+                <div class="relative">
+                    <label class="text-[9px] font-black uppercase text-red-500 mb-1 block tracking-widest">Zielort (Name oder Koordinaten)</label>
+                    <div class="relative">
+                        <input id="end-input" oninput="debouncedSearch(this, 'end-res')" autocomplete="off" type="text" placeholder="Ort oder 'Lat, Lon'..." class="w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-10 text-sm focus:border-orange-500 outline-none text-white">
+                        <i data-lucide="flag" class="absolute left-3 top-3.5 w-4 h-4 text-red-500"></i>
+                        <div id="end-res" class="search-results hidden"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Tab: Projekte -->
-            <div id="panel-projects" class="hidden space-y-4">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Cloud Archiv</h3>
-                    <span id="proj-count" class="text-[9px] text-orange-500 font-mono">0</span>
+            <div class="space-y-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+                <h3 class="text-[10px] font-black uppercase tracking-widest text-orange-500">Routing-Optionen</h3>
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] font-bold uppercase text-zinc-400">Kurvigkeit</span>
+                        <span id="curvy-label" class="text-[10px] font-black text-orange-500 uppercase">Fast & Curvy</span>
+                    </div>
+                    <input type="range" id="curviness" min="1" max="5" value="2" oninput="updateCurvyLabel(this.value)" class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer">
                 </div>
-                <div id="projects-list" class="space-y-3">
-                    <p class="text-center text-zinc-600 text-xs py-10">Lade Daten...</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase text-zinc-400">Autobahn vermeiden</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="avoid-highways" class="sr-only peer" checked>
+                        <div class="w-8 h-4 bg-zinc-700 rounded-full peer peer-checked:bg-orange-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all"></div>
+                    </label>
                 </div>
+                <div class="pt-2 border-t border-white/5">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] font-bold uppercase text-zinc-400">Max. KM / Tag</span>
+                        <span id="km-label" class="text-[10px] font-black text-white">350 km</span>
+                    </div>
+                    <input type="range" id="max-km" min="100" max="800" step="50" value="350" oninput="document.getElementById('km-label').innerText = this.value + ' km'" class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+
+            <div id="status-box" class="hidden p-4 rounded-xl border border-orange-500/30 bg-orange-500/5 flex items-center gap-3">
+                <div class="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                <span class="text-[10px] font-black uppercase text-orange-500 tracking-widest">Berechne Route...</span>
             </div>
         </div>
 
-        <!-- Footer -->
-        <div class="p-4 border-t border-white/10 bg-black/40 rounded-b-3xl">
-            <button onclick="downloadGPX()" id="gpx-btn" class="hidden w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5">
+        <div class="p-6 bg-black/80 border-t border-white/5 space-y-3">
+            <div id="stats-panel" class="hidden grid grid-cols-3 gap-2 mb-2">
+                <div class="bg-white/5 p-2 rounded-xl text-center border border-white/5">
+                    <p class="text-[7px] text-zinc-500 uppercase font-black tracking-widest">Distanz</p>
+                    <p id="stat-total-dist" class="text-xs font-bold">0 km</p>
+                </div>
+                <div class="bg-white/5 p-2 rounded-xl text-center border border-white/5">
+                    <p class="text-[7px] text-zinc-500 uppercase font-black tracking-widest">Dauer</p>
+                    <p id="stat-total-time" class="text-xs font-bold">0h</p>
+                </div>
+                <div class="bg-white/5 p-2 rounded-xl text-center border border-white/5">
+                    <p class="text-[7px] text-zinc-500 uppercase font-black tracking-widest">Tage</p>
+                    <p id="stat-days" class="text-xs font-bold">1</p>
+                </div>
+            </div>
+            <button onclick="calculateRoute(true)" class="w-full py-4 bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
+                <i data-lucide="zap" class="w-5 h-5"></i> Tour berechnen
+            </button>
+            <button id="gpx-btn" onclick="exportGPX()" class="hidden w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all flex items-center justify-center gap-2">
                 <i data-lucide="download" class="w-4 h-4"></i> GPX Export
             </button>
         </div>
     </aside>
 
-    <!-- Overlay Stats -->
-    <div id="route-stats" class="hidden absolute top-6 right-6 z-[900] bg-black/90 backdrop-blur-2xl p-6 rounded-3xl border border-white/10 min-w-[260px] shadow-2xl">
-        <div class="flex items-center gap-4 mb-4">
-            <div class="bg-orange-600 p-3 rounded-xl shadow-lg">
-                <i data-lucide="navigation" class="text-black w-5 h-5"></i>
-            </div>
-            <div>
-                <p class="text-[9px] text-zinc-500 uppercase font-black tracking-wider">Distanz</p>
-                <p id="stat-dist" class="text-2xl font-black italic text-white">0.0 km</p>
-            </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
-            <div>
-                <p class="text-[9px] text-zinc-500 uppercase font-black tracking-wider">Zeit</p>
-                <p id="stat-time" class="font-bold text-zinc-200 text-xs">--</p>
-            </div>
-            <div>
-                <p class="text-[9px] text-zinc-500 uppercase font-black tracking-wider">Höhe</p>
-                <p id="stat-ele" class="font-bold text-zinc-200 text-xs">--</p>
-            </div>
-        </div>
-    </div>
-
     <script>
-        const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImY3NDc2NTk5YTI3MzRiZDRiZjBmYjg4YmE1ZTZiYzgwIiwiaCI6Im11cm11cjY0In0=";
+        const ORS_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImY3NDc2NTk5YTI3MzRiZDRiZjBmYjg4YmE1ZTZiYzgwIiwiaCI6Im11cm11cjY0In0=";
         let map, routeLayer;
-        let waypoints = [];
-        let fullRouteGeojson = null;
-        let currentUser = null;
-        let searchTimeout = null;
-
-        async function initAuth() {
-            if (!window.fb) { setTimeout(initAuth, 100); return; }
-            const { auth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.fb;
-            
-            onAuthStateChanged(auth, (user) => {
-                currentUser = user;
-                const statusEl = document.getElementById('user-status');
-                const saveBtn = document.getElementById('save-btn');
-                if (user) {
-                    statusEl.innerText = `Online: ${user.uid.substring(0, 6)}`;
-                    saveBtn.disabled = false;
-                    loadProjects();
-                } else { 
-                    statusEl.innerText = 'Offline'; 
-                    saveBtn.disabled = true;
-                }
-            });
-
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (e) { console.error(e); }
-        }
-
-        async function saveCurrentProject() {
-            if(!currentUser || waypoints.length < 1) return;
-            const name = prompt("Name für diese Tour:", `Ride am ${new Date().toLocaleDateString()}`);
-            if(!name) return;
-
-            const { db, appId, collection, addDoc } = window.fb;
-            try {
-                await addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'projects'), {
-                    name,
-                    waypoints: JSON.parse(JSON.stringify(waypoints)),
-                    createdAt: new Date().toISOString()
-                });
-                showSuccess("Tour gespeichert!");
-            } catch(e) { showError("Fehler beim Cloud-Sync."); }
-        }
-
-        function loadProjects() {
-            if(!currentUser) return;
-            const { db, appId, collection, onSnapshot } = window.fb;
-            const q = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'projects');
-            
-            onSnapshot(q, (snapshot) => {
-                const list = document.getElementById('projects-list');
-                const countEl = document.getElementById('proj-count');
-                
-                if(snapshot.empty) {
-                    list.innerHTML = '<p class="text-center text-zinc-600 text-[10px] py-10 uppercase font-bold tracking-widest">Keine Touren vorhanden</p>';
-                    countEl.innerText = "0";
-                    return;
-                }
-                
-                let docs = [];
-                snapshot.forEach(d => docs.push({id: d.id, ...d.data()}));
-                docs.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-                countEl.innerText = docs.length;
-                
-                list.innerHTML = "";
-                docs.forEach(data => {
-                    const card = document.createElement('div');
-                    card.className = "project-card p-4 rounded-2xl cursor-pointer group flex justify-between items-center list-item-anim";
-                    card.innerHTML = `
-                        <div onclick="restoreProject('${data.id}')" class="flex-1 overflow-hidden pr-2">
-                            <p class="text-[11px] font-bold text-white truncate">${data.name}</p>
-                            <p class="text-[9px] text-zinc-500 font-mono uppercase tracking-tighter">${data.waypoints.length} Etappen • ${new Date(data.createdAt).toLocaleDateString()}</p>
-                        </div>
-                        <button onclick="deleteProject('${data.id}', event)" class="btn-delete p-2" title="Löschen">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                    `;
-                    list.appendChild(card);
-                });
-                lucide.createIcons();
-            }, (err) => console.error(err));
-        }
-
-        async function restoreProject(id) {
-            if (!currentUser) return;
-            const { db, appId, doc, getDoc } = window.fb;
-            try {
-                const docSnap = await getDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'projects', id));
-                if (docSnap.exists()) {
-                    waypoints = docSnap.data().waypoints;
-                    refreshMapMarkers();
-                    if(waypoints.length >= 2) runAdvancedRouting();
-                    switchTab('plan');
-                }
-            } catch(e) { showError("Ladefehler."); }
-        }
-
-        async function deleteProject(id, event) {
-            if(event) event.stopPropagation();
-            if(!currentUser || !confirm("Projekt unwiderruflich löschen?")) return;
-            const { db, appId, doc, deleteDoc } = window.fb;
-            try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'projects', id));
-                showSuccess("Projekt entfernt.");
-            } catch (e) { showError("Löschen fehlgeschlagen."); }
-        }
-
-        function showSuccess(msg) {
-            const errBox = document.getElementById('error-message');
-            errBox.innerText = msg;
-            errBox.className = "p-4 rounded-xl text-[11px] font-bold border bg-green-900/20 text-green-400 border-green-500/50 block";
-            setTimeout(() => errBox.className = "hidden", 3000);
-        }
-
-        function showError(msg) {
-            const errBox = document.getElementById('error-message');
-            errBox.innerText = msg;
-            errBox.className = "p-4 rounded-xl text-[11px] font-bold border bg-red-900/20 text-red-400 border-red-500/50 block";
-            setTimeout(() => errBox.className = "hidden", 5000);
-        }
+        let startPoint = null, endPoint = null;
+        let waypoints = []; 
+        let currentGeojson = null;
+        let markers = [];
+        let searchTimeout;
 
         function init() {
             lucide.createIcons();
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([47.37, 8.54], 8);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            map = L.map('map', { zoomControl: false, attributionControl: true }).setView([51.1657, 10.4515], 6);
             
+            const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri'
+            });
+
+            const labels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            });
+
+            satellite.addTo(map);
+            labels.addTo(map);
+
             map.on('contextmenu', (e) => {
-                addWaypoint([e.latlng.lng, e.latlng.lat], `Stopp ${waypoints.length + 1}`);
+                const { lat, lng } = e.latlng;
+                addAtCoords(lng, lat);
             });
-            
-            // Klick außerhalb schließt Suche
-            document.addEventListener('click', (e) => {
-                if(!e.target.closest('.group')) {
-                    document.getElementById('start-res').classList.add('hidden');
-                    document.getElementById('end-res').classList.add('hidden');
-                }
-            });
-
-            initAuth();
+            renderProjectList();
         }
 
+        // Neu: Sidebar Toggle Funktion
         function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
+            const sidebar = document.getElementById('main-sidebar');
             const icon = document.getElementById('toggle-icon');
-            sidebar.classList.toggle('sidebar-collapsed');
-            icon.style.transform = sidebar.classList.contains('sidebar-collapsed') ? 'rotate(180deg)' : 'rotate(0deg)';
-        }
-
-        async function searchLoc(el, resId) {
-            clearTimeout(searchTimeout);
-            const queryText = el.value.trim();
-            const div = document.getElementById(resId);
+            sidebar.classList.toggle('collapsed');
             
-            if(queryText.length < 3) { div.classList.add('hidden'); return; }
-
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryText)}&limit=6`);
-                    const data = await res.json();
-                    if(data.length === 0) { div.classList.add('hidden'); return; }
-                    
-                    div.innerHTML = data.map(item => `
-                        <div onclick="selectLocation('${resId}', '${item.display_name.split(',')[0]}', [${item.lat}, ${item.lon}])" 
-                             class="p-4 text-xs border-b border-white/5 hover:bg-orange-600 hover:text-black cursor-pointer transition-all font-bold text-zinc-300">
-                            <div class="truncate">${item.display_name}</div>
-                        </div>`).join('');
-                    div.classList.remove('hidden');
-                } catch(e) { console.error(e); }
-            }, 300);
-        }
-
-        function selectLocation(resId, name, coords) {
-            const isStart = resId.includes('start');
-            const pt = [coords[1], coords[0]];
-            
-            if(isStart) {
-                if(waypoints.length > 0 && waypoints[0].isStart) waypoints.shift();
-                waypoints.unshift({coords: pt, name, isStart: true});
-                document.getElementById('start-input').value = name;
+            if (sidebar.classList.contains('collapsed')) {
+                icon.setAttribute('data-lucide', 'chevron-right');
             } else {
-                if(waypoints.length > 0 && waypoints[waypoints.length-1].isEnd) waypoints.pop();
-                waypoints.push({coords: pt, name, isEnd: true});
-                document.getElementById('end-input').value = name;
+                icon.setAttribute('data-lucide', 'chevron-left');
             }
+            lucide.createIcons();
             
-            document.getElementById(resId).classList.add('hidden');
-            refreshMapMarkers();
-            if(waypoints.length >= 2) runAdvancedRouting();
+            // Karte an Fenstergröße anpassen nach Animation
+            setTimeout(() => map.invalidateSize(), 400);
         }
 
-        function addWaypoint(coords, name) {
-            if(waypoints.length >= 2 && waypoints[waypoints.length-1].isEnd) {
-                waypoints.splice(waypoints.length - 1, 0, {coords, name});
-            } else {
-                waypoints.push({coords, name});
+        function parseCoords(input) {
+            const simpleRegex = /^([-+]?\d+\.?\d*)\s*[\s,]\s*([-+]?\d+\.?\d*)$/;
+            const match = input.match(simpleRegex);
+            if (match) {
+                const lat = parseFloat(match[1]);
+                const lon = parseFloat(match[2]);
+                if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+                    return [lon, lat];
+                }
             }
-            refreshMapMarkers();
-            if(waypoints.length >= 2) runAdvancedRouting();
+            return null;
         }
 
-        function refreshMapMarkers() {
-            map.eachLayer(l => { if(l instanceof L.Marker) map.removeLayer(l); });
-            waypoints.forEach((wp, i) => {
-                const isStart = i === 0 && wp.isStart;
-                const isEnd = i === waypoints.length - 1 && wp.isEnd;
-                let color = "#ff9800";
-                if(isStart) color = "#22c55e";
-                if(isEnd) color = "#ef4444";
-
-                L.marker([wp.coords[1], wp.coords[0]], {
-                    draggable: true,
-                    icon: L.divIcon({
-                        className: 'custom-icon',
-                        html: `<div class="waypoint-badge" style="background:${color}">${i+1}</div>`,
-                        iconSize: [28, 28], iconAnchor: [14, 14]
-                    })
-                }).addTo(map).on('dragend', (e) => {
-                    const pos = e.target.getLatLng();
-                    waypoints[i].coords = [pos.lng, pos.lat];
-                    runAdvancedRouting();
-                });
-            });
-            updateWaypointsUI();
+        function toggleProjects() {
+            const modal = document.getElementById('project-modal');
+            const isVisible = modal.style.display === 'flex';
+            modal.style.display = isVisible ? 'none' : 'flex';
+            if (!isVisible) renderProjectList();
+        }
+        
+        function saveProjectInternal() {
+            const name = document.getElementById('project-name').value.trim();
+            if (!name) return;
+            const project = {
+                id: Date.now(),
+                name: name,
+                start: startPoint,
+                end: endPoint,
+                waypoints: waypoints,
+                settings: {
+                    curviness: document.getElementById('curviness').value,
+                    maxKm: document.getElementById('max-km').value,
+                    avoid: document.getElementById('avoid-highways').checked
+                }
+            };
+            const projects = JSON.parse(localStorage.getItem('rideplan_projects') || '[]');
+            projects.push(project);
+            localStorage.setItem('rideplan_projects', JSON.stringify(projects));
+            document.getElementById('project-name').value = "";
+            renderProjectList();
         }
 
-        function updateWaypointsUI() {
-            const list = document.getElementById('waypoints-list');
-            list.innerHTML = "";
-            waypoints.forEach((wp, i) => {
-                const item = document.createElement('div');
-                item.className = "list-item-anim";
-                let segmentStats = (i > 0 && wp.segment) ? `
-                    <div class="ml-6 mb-2 border-l-2 border-orange-500/20 pl-4 py-1">
-                        <span class="text-[8px] font-black text-orange-500 bg-orange-500/10 px-2 py-1 rounded-sm uppercase tracking-tighter">
-                            +${wp.segment.dist}km • ${wp.segment.time}m
-                        </span>
-                    </div>` : "";
-                item.innerHTML = `${segmentStats}
-                    <div class="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-2xl group hover:border-white/20 transition-all">
-                        <div class="flex items-center gap-3 overflow-hidden">
-                            <span class="text-[9px] font-black text-zinc-600 w-4">${i+1}</span>
-                            <p class="text-[10px] font-bold text-zinc-300 truncate">${wp.name || 'Wegpunkt'}</p>
-                        </div>
-                        <button onclick="removeWaypoint(${i})" class="text-zinc-600 hover:text-red-500 p-1"><i data-lucide="x" class="w-3 h-3"></i></button>
-                    </div>`;
-                list.appendChild(item);
-            });
+        function renderProjectList() {
+            const list = document.getElementById('project-list');
+            const projects = JSON.parse(localStorage.getItem('rideplan_projects') || '[]');
+            if (projects.length === 0) {
+                list.innerHTML = `<p class="text-[9px] text-zinc-600 text-center py-4 italic">Keine Touren gespeichert.</p>`;
+                return;
+            }
+            list.innerHTML = projects.map(p => `
+                <div class="flex items-center justify-between bg-white/5 hover:bg-white/10 p-2.5 rounded-xl group transition-colors">
+                    <button onclick="loadProjectInternal(${p.id})" class="text-[10px] font-bold text-zinc-300 truncate text-left flex-1">${p.name}</button>
+                    <button onclick="deleteProjectInternal(${p.id})" class="p-1.5 text-zinc-500 hover:text-red-500 transition-all"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                </div>
+            `).join('');
             lucide.createIcons();
         }
 
-        function removeWaypoint(i) {
-            waypoints.splice(i, 1);
-            refreshMapMarkers();
-            if(waypoints.length >= 2) runAdvancedRouting();
-            else if(routeLayer) map.removeLayer(routeLayer);
+        function loadProjectInternal(id) {
+            const projects = JSON.parse(localStorage.getItem('rideplan_projects') || '[]');
+            const p = projects.find(item => item.id === id);
+            if (!p) return;
+            startPoint = p.start;
+            endPoint = p.end;
+            waypoints = p.waypoints || [];
+            document.getElementById('start-input').value = startPoint ? startPoint.name : "";
+            document.getElementById('end-input').value = endPoint ? endPoint.name : "";
+            document.getElementById('curviness').value = p.settings.curviness;
+            document.getElementById('max-km').value = p.settings.maxKm;
+            document.getElementById('avoid-highways').checked = p.settings.avoid;
+            updateCurvyLabel(p.settings.curviness);
+            document.getElementById('km-label').innerText = p.settings.maxKm + " km";
+            renderWaypoints();
+            renderMarkers();
+            toggleProjects();
+            if (startPoint && endPoint) calculateRoute(true);
         }
 
-        async function runAdvancedRouting() {
-            if(waypoints.length < 2) return;
-            const status = document.getElementById('status-bar');
-            const statusText = document.getElementById('status-text');
-            status.classList.remove('hidden');
-            let allCoords = [], totalDist = 0, totalTime = 0, totalEle = 0;
+        function deleteProjectInternal(id) {
+            let projects = JSON.parse(localStorage.getItem('rideplan_projects') || '[]');
+            projects = projects.filter(p => p.id !== id);
+            localStorage.setItem('rideplan_projects', JSON.stringify(projects));
+            renderProjectList();
+        }
+
+        function exportJSON() {
+            const data = { start: startPoint, end: endPoint, waypoints, settings: { curviness: document.getElementById('curviness').value, maxKm: document.getElementById('max-km').value, avoid: document.getElementById('avoid-highways').checked } };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Tour_Backup.json'; a.click();
+        }
+
+        function updateCurvyLabel(val) {
+            const labels = ["Schnellste", "Fast & Curvy", "Kurvig", "Extra Kurvig", "Maximum"];
+            document.getElementById('curvy-label').innerText = labels[val-1];
+        }
+
+        function debouncedSearch(input, resId, index = -1) {
+            clearTimeout(searchTimeout);
+            const val = input.value.trim();
+            const resDiv = document.getElementById(resId);
             
-            try {
-                for(let i = 0; i < waypoints.length - 1; i++) {
-                    statusText.innerText = `Route: Segment ${i+1}/${waypoints.length-1}`;
-                    const res = await fetch(`https://api.openrouteservice.org/v2/directions/driving-car/geojson`, {
-                        method: 'POST',
-                        headers: { 'Authorization': ORS_API_KEY, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ coordinates: [waypoints[i].coords, waypoints[i+1].coords], elevation: true })
-                    });
-                    const data = await res.json();
-                    if (!data.features) throw new Error("API Limit oder Route blockiert.");
-                    
-                    const f = data.features[0];
-                    waypoints[i+1].segment = {
-                        dist: (f.properties.summary.distance / 1000).toFixed(1),
-                        time: Math.round(f.properties.summary.duration / 60)
-                    };
-                    totalDist += f.properties.summary.distance;
-                    totalTime += f.properties.summary.duration;
-                    totalEle += (f.properties.ascent || 0);
-                    allCoords = [...allCoords, ...f.geometry.coordinates];
-                }
-                
-                fullRouteGeojson = { type: "Feature", geometry: { type: "LineString", coordinates: allCoords } };
-                if(routeLayer) map.removeLayer(routeLayer);
-                routeLayer = L.geoJSON(fullRouteGeojson, { style: { color: '#ff9800', weight: 6, opacity: 0.9, lineCap: 'round' } }).addTo(map);
-                
-                document.getElementById('stat-dist').innerText = `${(totalDist / 1000).toFixed(1)} km`;
-                document.getElementById('stat-time').innerText = `${Math.floor(totalTime / 3600)}h ${Math.round((totalTime % 3600) / 60)}m`;
-                document.getElementById('stat-ele').innerText = `▲ ${Math.round(totalEle)}m`;
-                
-                map.fitBounds(routeLayer.getBounds(), { padding: [80, 80] });
-                document.getElementById('route-stats').classList.remove('hidden');
-                document.getElementById('gpx-btn').classList.remove('hidden');
-                updateWaypointsUI();
-                renderPois();
-            } catch(e) {
-                showError("Routing fehlgeschlagen. Prüfe die Internetverbindung.");
-            } finally { status.classList.add('hidden'); }
+            if (!val) {
+                resDiv.classList.add('hidden');
+                return;
+            }
+
+            const coords = parseCoords(val);
+            if (coords) {
+                resDiv.innerHTML = `
+                <div onclick="selectLocation('${resId}', '${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}', ${coords[0]}, ${coords[1]}, ${index})" 
+                     class="p-3 bg-orange-500/20 text-orange-500 cursor-pointer text-[11px] font-bold border-b border-orange-500/20 transition-colors">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="crosshair" class="w-3 h-3"></i>
+                        <span>Koordinaten verwenden: ${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}</span>
+                    </div>
+                </div>`;
+                resDiv.classList.remove('hidden');
+                lucide.createIcons();
+                return;
+            }
+
+            searchTimeout = setTimeout(() => handleSearch(input, resId, index), 350);
         }
 
-        function renderPois() {
-            const container = document.getElementById('pois-results');
+        async function handleSearch(input, resId, index = -1) {
+            const query = input.value.trim();
+            const resDiv = document.getElementById(resId);
+            if (query.length < 2) { resDiv.classList.add('hidden'); return; }
+
+            try {
+                const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lang=de`;
+                const r = await fetch(url);
+                if (!r.ok) throw new Error('Search API Error');
+                const data = await r.json();
+                
+                let html = "";
+                if (!data.features || data.features.length === 0) {
+                    html = `<div class="p-3 text-[11px] text-zinc-500 italic text-center">Keine Treffer</div>`;
+                } else {
+                    html = data.features.map(f => {
+                        const p = f.properties;
+                        const label = [p.name, p.city, p.country].filter(Boolean).join(', ');
+                        const [lon, lat] = f.geometry.coordinates;
+                        return `
+                        <div onclick="selectLocation('${resId}', '${p.name || p.city}', ${lon}, ${lat}, ${index})" 
+                             class="p-3 hover:bg-orange-500 hover:text-black cursor-pointer text-[11px] font-bold text-zinc-300 border-b border-white/5 transition-colors">
+                            <div class="truncate text-white group-hover:text-black">${label}</div>
+                            <div class="text-[9px] opacity-60 font-normal italic uppercase">${p.state || p.postcode || ''}</div>
+                        </div>`;
+                    }).join('');
+                }
+                resDiv.innerHTML = html;
+                resDiv.classList.remove('hidden');
+            } catch (err) {
+                resDiv.innerHTML = `<div class="p-3 text-[11px] text-red-400 italic">Fehler beim Laden...</div>`;
+                resDiv.classList.remove('hidden');
+            }
+        }
+
+        function selectLocation(resId, name, lon, lat, index) {
+            const obj = { coords: [lon, lat], name: name, type: 'stop' };
+            if (resId === 'start-res') {
+                startPoint = obj;
+                document.getElementById('start-input').value = name;
+            } else if (resId === 'end-res') {
+                endPoint = obj;
+                document.getElementById('end-input').value = name;
+            } else {
+                waypoints[index] = obj;
+                document.getElementById(`wp-input-${index}`).value = name;
+            }
+            document.getElementById(resId).classList.add('hidden');
+            renderMarkers();
+            if (startPoint && endPoint) calculateRoute(true);
+        }
+
+        function addAtCoords(lon, lat) {
+            const index = waypoints.length;
+            waypoints.push({ coords: [lon, lat], name: `${lat.toFixed(4)}, ${lon.toFixed(4)}`, type: 'stop' });
+            renderWaypoints();
+            renderMarkers();
+            if (startPoint && endPoint) calculateRoute(false); 
+        }
+
+        function addNewWaypoint() {
+            waypoints.push(null);
+            renderWaypoints();
+        }
+
+        function togglePointType(index) {
+            if (!waypoints[index]) return;
+            waypoints[index].type = waypoints[index].type === 'stop' ? 'shaping' : 'stop';
+            renderWaypoints();
+            renderMarkers();
+            if (startPoint && endPoint) calculateRoute(false);
+        }
+
+        function renderWaypoints() {
+            const container = document.getElementById('waypoints-list');
             container.innerHTML = "";
             waypoints.forEach((wp, i) => {
-                const section = document.createElement('div');
-                section.className = "space-y-4 list-item-anim";
-                section.innerHTML = `
-                    <div class="flex items-center gap-3 border-b border-white/10 pb-2">
-                        <span class="bg-zinc-800 text-orange-500 font-black w-6 h-6 rounded text-[10px] flex items-center justify-center border border-orange-500/30">${i+1}</span>
-                        <h3 class="text-[10px] font-black uppercase italic text-white tracking-widest">${wp.name || 'Wegpunkt'}</h3>
+                const div = document.createElement('div');
+                div.className = "waypoint-card p-3 rounded-xl relative group";
+                const typeIcon = wp?.type === 'shaping' ? 'circle' : 'map-pin';
+                const typeColor = wp?.type === 'shaping' ? 'text-zinc-500' : 'text-orange-500';
+                
+                div.innerHTML = `
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[8px] font-black uppercase text-zinc-600">Stop ${i+1}</span>
+                        <button onclick="togglePointType(${i})" class="text-[8px] uppercase font-bold px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 ${wp?.type === 'shaping' ? 'text-zinc-500' : 'text-orange-400'}">
+                            ${wp?.type === 'shaping' ? 'Shaping Point' : 'Via Point'}
+                        </button>
                     </div>
-                    <div class="grid gap-2">
-                        <div class="poi-card p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-all border border-white/5">
-                            <p class="text-[9px] font-black text-orange-500 uppercase mb-1 tracking-tighter">Empfehlung</p>
-                            <p class="text-[11px] font-bold text-white">Biker-Point ${wp.name.split(',')[0]}</p>
-                            <div class="flex items-center gap-2 mt-2">
-                                <span class="bg-zinc-900 px-2 py-0.5 rounded text-[8px] text-zinc-500 font-bold border border-white/5">GASTRONOMIE</span>
-                            </div>
-                        </div>
-                    </div>`;
-                container.appendChild(section);
+                    <div class="relative">
+                        <input id="wp-input-${i}" oninput="debouncedSearch(this, 'wp-res-${i}', ${i})" value="${wp ? wp.name : ''}" autocomplete="off" type="text" placeholder="Ort oder 'Lat, Lon'..." class="w-full bg-black/40 border border-white/5 rounded-lg p-2 pl-8 text-xs text-white focus:border-orange-500/50 outline-none">
+                        <i data-lucide="${typeIcon}" class="absolute left-2.5 top-2.5 w-3.5 h-3.5 ${typeColor}"></i>
+                        <button onclick="removeWaypoint(${i})" class="absolute right-2 top-2 text-zinc-600 hover:text-red-500"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                        <div id="wp-res-${i}" class="search-results hidden"></div>
+                    </div>
+                `;
+                container.appendChild(div);
             });
             lucide.createIcons();
         }
 
-        function switchTab(t) {
-            ['plan', 'detail', 'projects'].forEach(tab => {
-                document.getElementById(`tab-${tab}`).classList.toggle('active', tab === t);
-                document.getElementById(`panel-${tab}`).classList.toggle('hidden', tab !== t);
-            });
+        function removeWaypoint(index) {
+            waypoints.splice(index, 1);
+            renderWaypoints();
+            renderMarkers();
+            if (startPoint && endPoint) calculateRoute(false);
         }
 
-        function downloadGPX() {
-            if(!fullRouteGeojson) return;
-            let gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="RidePlan"><trk><name>Tour</name><trkseg>`;
-            fullRouteGeojson.geometry.coordinates.forEach(pt => gpx += `<trkpt lat="${pt[1]}" lon="${pt[0]}"></trkpt>`);
-            gpx += `</trkseg></trk></gpx>`;
+        function sortWaypoints() {
+            if (!startPoint || waypoints.length < 2) return;
+            let validWps = waypoints.filter(wp => wp !== null);
+            if (validWps.length < 2) return;
+            validWps.sort((a, b) => {
+                const distA = Math.sqrt(Math.pow(a.coords[0] - startPoint.coords[0], 2) + Math.pow(a.coords[1] - startPoint.coords[1], 2));
+                const distB = Math.sqrt(Math.pow(b.coords[0] - startPoint.coords[0], 2) + Math.pow(b.coords[1] - startPoint.coords[1], 2));
+                return distA - distB;
+            });
+            waypoints = validWps;
+        }
+
+        function renderMarkers() {
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+            
+            const addMarker = (coords, label, color, isDraggable = true, index = -1) => {
+                const pinHtml = `<div class="custom-pin"><div class="pin-drop" style="background: ${color}"><div class="pin-label">${label}</div></div></div>`;
+                const m = L.marker([coords[1], coords[0]], {
+                    draggable: isDraggable,
+                    icon: L.divIcon({ html: pinHtml, className: '', iconSize: [32, 32], iconAnchor: [16, 32] })
+                }).addTo(map);
+                m.on('dragend', function(e) {
+                    const { lat, lng } = e.target.getLatLng();
+                    const newName = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                    if (index === -100) { startPoint = { coords: [lng, lat], name: newName, type: 'stop' }; document.getElementById('start-input').value = newName; }
+                    else if (index === -200) { endPoint = { coords: [lng, lat], name: newName, type: 'stop' }; document.getElementById('end-input').value = newName; }
+                    else { waypoints[index] = { coords: [lng, lat], name: newName, type: waypoints[index]?.type || 'stop' }; sortWaypoints(); }
+                    renderWaypoints(); renderMarkers();
+                    if (startPoint && endPoint) calculateRoute(false);
+                });
+                markers.push(m);
+            };
+            if (startPoint) addMarker(startPoint.coords, 'S', '#22c55e', true, -100);
+            if (endPoint) addMarker(endPoint.coords, 'E', '#ef4444', true, -200);
+            waypoints.forEach((wp, i) => { if (wp) addMarker(wp.coords, i+1, wp.type === 'shaping' ? '#71717a' : '#ff9800', true, i); });
+        }
+
+        async function calculateRoute(shouldFitBounds = false) {
+            if (!startPoint || !endPoint) return;
+            const status = document.getElementById('status-box');
+            status.classList.remove('hidden');
+            const validWaypoints = waypoints.filter(w => w && w.coords);
+            const allCoords = [startPoint.coords, ...validWaypoints.map(w => w.coords), endPoint.coords];
+            const avoid = document.getElementById('avoid-highways').checked ? ["highways", "tollways"] : [];
+            const curvinessVal = parseInt(document.getElementById('curviness').value);
+            const preference = curvinessVal > 3 ? 'recommended' : 'fastest';
+
+            try {
+                const res = await fetch(`https://api.openrouteservice.org/v2/directions/driving-car/geojson`, {
+                    method: 'POST',
+                    headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ coordinates: allCoords, preference: preference, options: { avoid_features: avoid } })
+                });
+                if (!res.ok) throw new Error('Route nicht möglich');
+                const data = await res.json();
+                currentGeojson = data;
+                if (routeLayer) map.removeLayer(routeLayer);
+                routeLayer = L.geoJSON(data, { style: { color: '#ff9800', weight: 6, opacity: 0.8 } }).addTo(map);
+                if (shouldFitBounds) map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+                const stats = data.features[0].properties.summary;
+                const distKm = (stats.distance / 1000).toFixed(1);
+                document.getElementById('stat-total-dist').innerText = distKm + " km";
+                document.getElementById('stat-total-time').innerText = Math.round(stats.duration / 3600) + "h";
+                document.getElementById('stat-days').innerText = Math.ceil(distKm / parseInt(document.getElementById('max-km').value));
+                document.getElementById('stats-panel').classList.remove('hidden');
+                document.getElementById('gpx-btn').classList.remove('hidden');
+            } catch (e) { console.error(e); } finally { status.classList.add('hidden'); }
+        }
+
+        function exportGPX() {
+            if (!currentGeojson) return;
+            const coords = currentGeojson.features[0].geometry.coordinates;
+            let gpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="RidePlan Pro" xmlns="http://www.topografix.com/GPX/1/1">`;
+            gpx += `\n<trk><name>RidePlan Route</name><trkseg>`;
+            coords.forEach(c => { gpx += `\n<trkpt lat="${c[1]}" lon="${c[0]}"></trkpt>`; });
+            gpx += `\n</trkseg></trk></gpx>`;
             const blob = new Blob([gpx], { type: 'application/gpx+xml' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = "rideplan_tour.gpx"; a.click();
+            const a = document.createElement('a'); a.href = url; a.download = `Route_${new Date().toISOString().slice(0,10)}.gpx`; a.click();
         }
 
         window.onload = init;
