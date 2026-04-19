@@ -122,7 +122,14 @@
                     <div id="start-res" class="search-results hidden"></div>
                 </div>
 
-                <div id="waypoint-list" class="pt-2">
+                <div class="flex justify-between items-end pt-2">
+                    <label class="text-[10px] font-bold uppercase text-zinc-500 tracking-wider">Zwischenziele</label>
+                    <button id="clear-all-wps" onclick="clearAllWaypoints()" class="hidden text-[9px] font-black uppercase text-red-500 hover:text-red-400 flex items-center gap-1 transition-colors">
+                        <i data-lucide="x-circle" class="w-3 h-3"></i> Alle löschen
+                    </button>
+                </div>
+                
+                <div id="waypoint-list" class="min-h-[10px]">
                     <!-- Wegpunkte -->
                 </div>
 
@@ -138,7 +145,7 @@
                 </div>
             </div>
 
-            <!-- NEU: Shaping Points Option -->
+            <!-- Shaping Points Option -->
             <div class="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
                 <h3 class="text-[10px] font-black uppercase text-orange-500 tracking-widest flex items-center gap-2">
                     <i data-lucide="layers" class="w-3 h-3"></i> Shaping Points (GPX Export)
@@ -343,8 +350,18 @@
             triggerAutoCalc();
         }
 
-        function addWaypoint() { waypoints.push({ name: '', type: 'stop' }); renderWaypoints(); }
+        function addWaypoint() { 
+            waypoints.push({ name: '', type: 'stop' }); 
+            renderWaypoints(); 
+        }
         
+        function clearAllWaypoints() {
+            waypoints = [];
+            renderWaypoints();
+            updateMarkers();
+            triggerAutoCalc();
+        }
+
         function toggleWaypointType(idx) {
             if (!waypoints[idx]) return;
             waypoints[idx].type = waypoints[idx].type === 'stop' ? 'via' : 'stop';
@@ -362,6 +379,15 @@
 
         function renderWaypoints() {
             const container = document.getElementById('waypoint-list');
+            const clearBtn = document.getElementById('clear-all-wps');
+            
+            // Show/Hide Clear All Button
+            if (waypoints.length > 0) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+
             container.innerHTML = "";
             waypoints.forEach((wp, i) => {
                 const div = document.createElement('div');
@@ -532,20 +558,12 @@
             } else {
                 gpx += `\n  <rte><name>${routeTitle} (Route)</name>`;
                 
-                // Basis-Wegpunkte
                 let allPoints = [startPt, ...waypoints.filter(w => w && w.lat), endPt];
                 
-                // NEU: Shaping Points integrieren
                 const numShaping = parseInt(document.getElementById('opt-shaping').value);
                 if (numShaping > 0) {
                     const finalPoints = [];
-                    // Startpunkt hinzufügen
                     finalPoints.push({...startPt, isShaping: false});
-                    
-                    // Manuelle Wegpunkte + Shaping Points dazwischen
-                    const manualPoints = [...waypoints.filter(w => w && w.lat), endPt];
-                    
-                    // Wir verteilen die Shaping-Punkte gleichmäßig über die gesamte Koordinatenliste des Tracks
                     const step = Math.floor(coords.length / (numShaping + 1));
                     
                     for (let i = 1; i <= numShaping; i++) {
@@ -560,12 +578,7 @@
                             });
                         }
                     }
-                    
-                    // Die manuellen Punkte werden am Ende der Liste oder an ihren Positionen gehalten
-                    // Für eine einfache "Erzwingung" mischen wir die Shaping Points ein
-                    // Wir sortieren sie nach ihrer Position auf der berechneten Route (vereinfacht)
                     allPoints = [...allPoints, ...finalPoints.filter(p => p.isShaping)];
-                    // Sortierung basierend auf dem Index in coords wäre ideal, hier nehmen wir Distanz zum Start als Proxy
                     allPoints.sort((a, b) => getDistance(startPt, a) - getDistance(startPt, b));
                 }
 
