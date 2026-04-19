@@ -83,7 +83,6 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.5);
             margin-bottom: 15px;
         }
-        /* Style für Via-Punkte (etwas kleiner) */
         .marker-drop.via-point {
             width: 22px;
             height: 22px;
@@ -113,8 +112,8 @@
                 <p class="text-[8px] text-zinc-500 font-bold uppercase tracking-widest">Motorcycle Route Engine</p>
             </div>
             <div class="flex gap-2">
-                <button onclick="saveProject()" class="p-2 bg-white/5 rounded hover:bg-white/10"><i data-lucide="save" class="w-4 h-4"></i></button>
-                <button onclick="loadProject()" class="p-2 bg-white/5 rounded hover:bg-white/10"><i data-lucide="folder-open" class="w-4 h-4"></i></button>
+                <button onclick="saveProject()" class="p-2 bg-white/5 rounded hover:bg-white/10" title="Speichern"><i data-lucide="save" class="w-4 h-4"></i></button>
+                <button onclick="loadProject()" class="p-2 bg-white/5 rounded hover:bg-white/10" title="Laden"><i data-lucide="folder-open" class="w-4 h-4"></i></button>
             </div>
         </div>
 
@@ -195,7 +194,7 @@
         const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImY3NDc2NTk5YTI3MzRiZDRiZjBmYjg4YmE1ZTZiYzgwIiwiaCI6Im11cm11cjY0In0=";
         let map, routeLayer, sortable;
         let startPt = null, endPt = null;
-        let waypoints = []; // Format: { lat, lng, name, type: 'stop' | 'via' }
+        let waypoints = [];
         let markers = [];
         let searchTimeout;
         let autoCalcTimeout;
@@ -362,17 +361,12 @@
                     <div class="drag-handle cursor-grab text-zinc-600 hover:text-orange-500"><i data-lucide="grip-vertical" class="w-4 h-4"></i></div>
                     <div class="flex-1 relative">
                         <input oninput="doSearch(this, 'wp-res-${i}', ${i})" value="${wp?wp.name:''}" placeholder="Zwischenziel..." class="w-full bg-black/40 border border-white/5 rounded p-2 pl-9 pr-8 text-xs outline-none focus:border-orange-500">
-                        
-                        <!-- Nummerierung & Umschalter -->
                         <div class="absolute left-2.5 top-2 w-4 h-4 bg-orange-500 text-black text-[9px] font-black flex items-center justify-center rounded-full shadow-sm">
                             ${i+1}
                         </div>
-
-                        <!-- Manueller Switch Button (Stop vs Via) -->
                         <button onclick="toggleWaypointType(${i})" class="absolute right-2 top-2 p-0.5 rounded ${isVia ? 'bg-zinc-700 text-zinc-400' : 'bg-orange-500/20 text-orange-500'} hover:scale-110 transition-transform" title="${isVia ? 'Via-Punkt (Nur Wegführung)' : 'Stopp (Zwischenziel)'}">
                             <i data-lucide="${isVia ? 'map' : 'map-pin'}" class="w-3.5 h-3.5"></i>
                         </button>
-
                         <div id="wp-res-${i}" class="search-results hidden"></div>
                     </div>
                     <button onclick="removeWaypoint(${i})" class="text-zinc-600 hover:text-red-500"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
@@ -457,7 +451,6 @@
             btnText.innerText = "Berechne Route...";
             btnIcon.innerHTML = `<svg class="spinner" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="80, 200" stroke-dashoffset="0" stroke-linecap="round"></circle></svg>`;
 
-            // Filter für API: Koordinaten sammeln
             const pts = [[startPt.lng, startPt.lat], ...waypoints.filter(w => w && w.lat).map(w => [w.lng, w.lat]), [endPt.lng, endPt.lat]];
             const curviness = document.getElementById('opt-curvy').value;
             const avoid = document.getElementById('opt-no-highway').checked ? ["highways"] : [];
@@ -509,20 +502,29 @@
 
         function exportGPX(type) {
             if (!window.currentRouteData) { alert("Bitte erst Route berechnen!"); return; }
+            
+            // Namen generieren
+            const startName = startPt ? startPt.name.split(',')[0].trim() : "Start";
+            const endName = endPt ? endPt.name.split(',')[0].trim() : "Ziel";
+            
+            // Sonderzeichen entfernen für Dateinamen
+            const clean = (s) => s.replace(/[^a-z0-9äöüß]/gi, '_').replace(/_+/g, '_');
+            const fileName = `${clean(startName)}_${clean(endName)}_${type}.gpx`;
+            const routeTitle = `${startName} nach ${endName}`;
+
             const coords = window.currentRouteData.features[0].geometry.coordinates;
             let gpx = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="RidePlanEnes" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata><name>RidePlan Tour</name></metadata>`;
+  <metadata><name>${routeTitle}</name></metadata>`;
 
             if (type === 'track') {
-                gpx += `\n  <trk><name>RidePlan Track</name><trkseg>`;
+                gpx += `\n  <trk><name>${routeTitle} (Track)</name><trkseg>`;
                 coords.forEach(c => gpx += `\n    <trkpt lat="${c[1]}" lon="${c[0]}"></trkpt>`);
                 gpx += `\n  </trkseg></trk>`;
             } else {
-                gpx += `\n  <rte><name>RidePlan Route</name>`;
+                gpx += `\n  <rte><name>${routeTitle} (Route)</name>`;
                 const viaPoints = [startPt, ...waypoints.filter(w => w && w.lat), endPt];
                 viaPoints.forEach(p => {
-                    // Falls Via-Punkt, Markierung im Namen hinzufügen oder spezielles Feld nutzen (GPX Standard variiert je nach Gerät)
                     const label = (p.type === 'via' ? "[VIA] " : "") + p.name;
                     gpx += `\n    <rtept lat="${p.lat}" lon="${p.lng}"><name>${label}</name></rtept>`;
                 });
@@ -534,7 +536,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Tour_${type}.gpx`;
+            a.download = fileName;
             a.click();
         }
 
