@@ -115,7 +115,7 @@
                 <label class="text-[10px] font-bold uppercase text-zinc-500 tracking-wider">Startpunkt</label>
                 <div class="relative">
                     <input id="start-input" oninput="doSearch(this, 'start-res')" placeholder="Ort oder Koordinaten..." class="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 pl-9 text-sm outline-none focus:border-orange-500">
-                    <i data-lucide="play" class="absolute left-3 top-3 w-4 h-4 text-green-500"></i>
+                    <div class="absolute left-3 top-3 w-5 h-5 bg-green-500 text-black text-[10px] font-black flex items-center justify-center rounded-full">S</div>
                     <div id="start-res" class="search-results hidden"></div>
                 </div>
 
@@ -130,7 +130,7 @@
                 <label class="text-[10px] font-bold uppercase text-zinc-500 tracking-wider block pt-2">Zielpunkt</label>
                 <div class="relative">
                     <input id="end-input" oninput="doSearch(this, 'end-res')" placeholder="Ort oder Koordinaten..." class="w-full bg-white/5 border border-white/10 rounded-lg p-2.5 pl-9 text-sm outline-none focus:border-orange-500">
-                    <i data-lucide="flag" class="absolute left-3 top-3 w-4 h-4 text-red-500"></i>
+                    <div class="absolute left-3 top-3 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full">Z</div>
                     <div id="end-res" class="search-results hidden"></div>
                 </div>
             </div>
@@ -313,7 +313,9 @@
                 div.innerHTML = `
                     <div class="drag-handle cursor-grab text-zinc-600 hover:text-orange-500"><i data-lucide="grip-vertical" class="w-4 h-4"></i></div>
                     <div class="flex-1 relative">
-                        <input oninput="doSearch(this, 'wp-res-${i}', ${i})" value="${wp?wp.name:''}" placeholder="Zwischenziel..." class="w-full bg-black/40 border border-white/5 rounded p-2 text-xs outline-none">
+                        <input oninput="doSearch(this, 'wp-res-${i}', ${i})" value="${wp?wp.name:''}" placeholder="Zwischenziel..." class="w-full bg-black/40 border border-white/5 rounded p-2 pl-9 text-xs outline-none focus:border-orange-500">
+                        <!-- Nummerierung im Menü -->
+                        <div class="absolute left-2.5 top-2 w-4 h-4 bg-orange-500 text-black text-[9px] font-black flex items-center justify-center rounded-full shadow-sm">${i+1}</div>
                         <div id="wp-res-${i}" class="search-results hidden"></div>
                     </div>
                     <button onclick="removeWaypoint(${i})" class="text-zinc-600 hover:text-red-500"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
