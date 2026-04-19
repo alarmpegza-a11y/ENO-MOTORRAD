@@ -63,13 +63,8 @@
         }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
 
-        .spinner {
-            animation: rotate 2s linear infinite;
-            width: 18px; height: 18px;
-        }
-        @keyframes rotate { 100% { transform: rotate(360deg); } }
-
-        .custom-marker { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .custom-marker { display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: grab; }
+        .custom-marker:active { cursor: grabbing; }
         .marker-drop {
             width: 30px; height: 30px; border-radius: 50% 50% 50% 0;
             transform: rotate(-45deg); display: flex; align-items: center;
@@ -253,8 +248,15 @@
 
             map.on('contextmenu', (e) => {
                 const wp = { lat: e.latlng.lat, lng: e.latlng.lng, name: `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`, type: 'stop' };
-                if (startPt) { waypoints.push(wp); autoSortWaypoints(); } else { waypoints.push(wp); renderWaypoints(); }
-                updateMarkers(); triggerAutoCalc();
+                if (startPt) { 
+                    waypoints.push(wp); 
+                    autoSortWaypoints(); 
+                } else { 
+                    waypoints.push(wp); 
+                    renderWaypoints(); 
+                }
+                updateMarkers(); 
+                triggerAutoCalc();
             });
         }
 
@@ -313,7 +315,9 @@
                 startPt = data.startPt; endPt = data.endPt; waypoints = data.waypoints;
                 document.getElementById('start-input').value = startPt ? startPt.name : '';
                 document.getElementById('end-input').value = endPt ? endPt.name : '';
-                renderWaypoints(); updateMarkers(); triggerAutoCalc();
+                renderWaypoints(); 
+                updateMarkers(); 
+                triggerAutoCalc();
                 closeModal('modal-load');
             }
         }
@@ -376,11 +380,22 @@
 
         function selectLoc(resId, name, lat, lng, idx) {
             const pt = { lat, lng, name, type: 'stop' };
-            if (resId === 'start-res') { startPt = pt; document.getElementById('start-input').value = name; autoSortWaypoints(); }
-            else if (resId === 'end-res') { endPt = pt; document.getElementById('end-input').value = name; }
-            else { waypoints[idx] = pt; renderWaypoints(); }
+            if (resId === 'start-res') { 
+                startPt = pt; 
+                document.getElementById('start-input').value = name; 
+                autoSortWaypoints(); 
+            }
+            else if (resId === 'end-res') { 
+                endPt = pt; 
+                document.getElementById('end-input').value = name; 
+            }
+            else { 
+                waypoints[idx] = pt; 
+                renderWaypoints(); 
+            }
             document.querySelectorAll('.search-results').forEach(d => d.classList.add('hidden'));
-            updateMarkers(); triggerAutoCalc();
+            updateMarkers(); 
+            triggerAutoCalc();
         }
 
         function addWaypoint() { waypoints.push({ name: '', type: 'stop' }); renderWaypoints(); }
@@ -424,17 +439,68 @@
             updateMarkers();
         }
 
+        function handleMarkerDrag(e, type, index) {
+            const newPos = e.target.getLatLng();
+            const coordStr = `${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)}`;
+            
+            if (type === 'start') {
+                startPt.lat = newPos.lat;
+                startPt.lng = newPos.lng;
+                startPt.name = coordStr;
+                document.getElementById('start-input').value = coordStr;
+            } else if (type === 'end') {
+                endPt.lat = newPos.lat;
+                endPt.lng = newPos.lng;
+                endPt.name = coordStr;
+                document.getElementById('end-input').value = coordStr;
+            } else if (type === 'wp') {
+                waypoints[index].lat = newPos.lat;
+                waypoints[index].lng = newPos.lng;
+                waypoints[index].name = coordStr;
+                renderWaypoints();
+            }
+            triggerAutoCalc();
+        }
+
         function updateMarkers() {
             markers.forEach(m => map.removeLayer(m));
             markers = [];
+            
             const createIcon = (color, label, isVia) => L.divIcon({
                 className: 'custom-marker',
                 html: `<div class="marker-drop ${isVia ? 'via-point' : ''}" style="background: ${color};"><span class="marker-label">${label}</span></div>`,
-                iconSize: isVia ? [22, 30] : [30, 42], iconAnchor: isVia ? [11, 30] : [15, 42]
+                iconSize: isVia ? [22, 30] : [30, 42], 
+                iconAnchor: isVia ? [11, 30] : [15, 42]
             });
-            if (startPt) markers.push(L.marker([startPt.lat, startPt.lng], { icon: createIcon('#22c55e', 'S') }).addTo(map));
-            if (endPt) markers.push(L.marker([endPt.lat, endPt.lng], { icon: createIcon('#ef4444', 'Z') }).addTo(map));
-            waypoints.forEach((wp, i) => { if (wp.lat) markers.push(L.marker([wp.lat, wp.lng], { icon: createIcon('#ff9800', i+1, wp.type === 'via') }).addTo(map)); });
+
+            if (startPt) {
+                const m = L.marker([startPt.lat, startPt.lng], { 
+                    icon: createIcon('#22c55e', 'S'),
+                    draggable: true 
+                }).addTo(map);
+                m.on('dragend', (e) => handleMarkerDrag(e, 'start'));
+                markers.push(m);
+            }
+
+            if (endPt) {
+                const m = L.marker([endPt.lat, endPt.lng], { 
+                    icon: createIcon('#ef4444', 'Z'),
+                    draggable: true 
+                }).addTo(map);
+                m.on('dragend', (e) => handleMarkerDrag(e, 'end'));
+                markers.push(m);
+            }
+
+            waypoints.forEach((wp, i) => { 
+                if (wp.lat) {
+                    const m = L.marker([wp.lat, wp.lng], { 
+                        icon: createIcon('#ff9800', i+1, wp.type === 'via'),
+                        draggable: true
+                    }).addTo(map);
+                    m.on('dragend', (e) => handleMarkerDrag(e, 'wp', i));
+                    markers.push(m); 
+                } 
+            });
         }
 
         async function calculateRoute() {
