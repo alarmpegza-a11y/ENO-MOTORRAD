@@ -53,7 +53,6 @@
         
         .leaflet-error-tile { display: none !important; }
 
-        /* Modals */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.8); z-index: 2000;
@@ -108,7 +107,7 @@
 
     <!-- Modal: Laden -->
     <div id="modal-load" class="modal-overlay">
-        <div class="bg-[#1a1a1e] border border-white/10 p-6 rounded-2xl max-w-md w-full mx-4 shadow-2xl">
+        <div class="bg-[#1a1a1e] border border-white/10 p-6 rounded-2xl max-md w-full mx-4 shadow-2xl">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold">Meine Touren</h3>
                 <button onclick="closeModal('modal-load')" class="text-zinc-500 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
@@ -117,6 +116,22 @@
                 <!-- Projekte werden hier eingefügt -->
             </div>
             <button onclick="closeModal('modal-load')" class="w-full py-3 bg-zinc-800 rounded-xl font-bold text-sm">Schließen</button>
+        </div>
+    </div>
+
+    <!-- Modal: Auto-Restore -->
+    <div id="modal-restore" class="modal-overlay">
+        <div class="bg-[#1a1a1e] border border-white/10 p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl">
+            <div class="w-12 h-12 bg-orange-500/20 text-orange-500 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <i data-lucide="rotate-ccw" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-center text-lg font-bold mb-2">Letzte Session gefunden</h3>
+            <p class="text-center text-zinc-400 text-sm mb-2">Möchtest du die zuletzt offene Tour wiederherstellen?</p>
+            <p id="restore-info" class="text-center text-orange-400 text-xs font-bold mb-6"></p>
+            <div class="flex gap-3">
+                <button onclick="closeModal('modal-restore')" class="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-bold text-sm">Nein</button>
+                <button onclick="executeRestore()" class="flex-1 py-3 bg-orange-500 text-black rounded-xl font-bold text-sm">Wiederherstellen</button>
+            </div>
         </div>
     </div>
 
@@ -182,7 +197,12 @@
             <div class="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
                 <h3 class="text-[10px] font-black uppercase text-orange-500 tracking-widest">Routing-Profil</h3>
                 
-                <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-zinc-400 uppercase">🚀 Schnellste Route</span>
+                    <input type="checkbox" id="opt-fastest" onchange="toggleFastestRoute()" class="w-4 h-4 accent-orange-500">
+                </div>
+
+                <div id="curvy-container">
                     <div class="flex justify-between mb-1">
                         <span class="text-[10px] font-bold text-zinc-400 uppercase">Kurvigkeit</span>
                         <span id="label-curvy" class="text-[10px] font-black text-orange-500">Fast & Curvy</span>
@@ -229,17 +249,27 @@
 
     <script>
         const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImY3NDc2NTk5YTI3MzRiZDRiZjBmYjg4YmE1ZTZiYzgwIiwiaCI6Im11cm11cjY0In0=";
+        const STORAGE_KEY = 'rideplan_projects';
+        const SESSION_KEY = 'rideplan_last_session';
+
         let map, routeLayer, sortable;
         let startPt = null, endPt = null;
         let waypoints = [];
         let markers = [];
         let searchTimeout;
         let autoCalcTimeout;
+        let pendingRestoreData = null;
 
         function init() {
             lucide.createIcons();
             map = L.map('map', { zoomControl: false }).setView([47.5, 13.5], 7);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+            // ── OSM Standard tiles (Google Maps Standard look) ──────────────────
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            }).addTo(map);
+            // ────────────────────────────────────────────────────────────────────
 
             sortable = Sortable.create(document.getElementById('waypoint-list'), {
                 animation: 150, handle: '.drag-handle',
@@ -248,23 +278,122 @@
 
             map.on('contextmenu', (e) => {
                 const wp = { lat: e.latlng.lat, lng: e.latlng.lng, name: `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`, type: 'stop' };
-                if (startPt) { 
-                    waypoints.push(wp); 
-                    autoSortWaypoints(); 
-                } else { 
-                    waypoints.push(wp); 
-                    renderWaypoints(); 
-                }
+                waypoints.push(wp); 
+                renderWaypoints();
                 updateMarkers(); 
                 triggerAutoCalc();
             });
+
+            // ── Check for last session on startup ───────────────────────────────
+            checkLastSession();
         }
 
-        // Modals Management
+        // ════════════════════════════════════════════════════════════════════════
+        // SESSION PERSISTENCE
+        // ════════════════════════════════════════════════════════════════════════
+
+        function saveSession() {
+            const session = {
+                startPt,
+                endPt,
+                waypoints,
+                timestamp: new Date().toLocaleString('de-DE')
+            };
+            try {
+                localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            } catch(e) {
+                console.warn('Session konnte nicht gespeichert werden:', e);
+            }
+        }
+
+        function checkLastSession() {
+            try {
+                const raw = localStorage.getItem(SESSION_KEY);
+                if (!raw) return;
+                const session = JSON.parse(raw);
+                if (!session || (!session.startPt && !session.endPt && (!session.waypoints || session.waypoints.length === 0))) return;
+
+                pendingRestoreData = session;
+                const info = [];
+                if (session.startPt) info.push(`Start: ${session.startPt.name}`);
+                if (session.endPt) info.push(`Ziel: ${session.endPt.name}`);
+                if (session.waypoints && session.waypoints.length > 0) info.push(`${session.waypoints.length} Zwischenziel(e)`);
+                document.getElementById('restore-info').innerText = info.join(' · ');
+                openModal('modal-restore');
+            } catch(e) {
+                console.warn('Session-Check fehlgeschlagen:', e);
+            }
+        }
+
+        function fitMapToPoints() {
+            const pts = [];
+            if (startPt) pts.push([startPt.lat, startPt.lng]);
+            if (endPt) pts.push([endPt.lat, endPt.lng]);
+            waypoints.forEach(wp => { if (wp && wp.lat) pts.push([wp.lat, wp.lng]); });
+            if (pts.length === 1) {
+                map.flyTo(pts[0], 13, { animate: true, duration: 1.2 });
+            } else if (pts.length > 1) {
+                map.flyToBounds(L.latLngBounds(pts), { padding: [60, 60], animate: true, duration: 1.2 });
+            }
+        }
+
+        function executeRestore() {
+            if (!pendingRestoreData) return;
+            startPt = pendingRestoreData.startPt;
+            endPt = pendingRestoreData.endPt;
+            waypoints = pendingRestoreData.waypoints || [];
+            document.getElementById('start-input').value = startPt ? startPt.name : '';
+            document.getElementById('end-input').value = endPt ? endPt.name : '';
+            renderWaypoints();
+            updateMarkers();
+            fitMapToPoints();
+            triggerAutoCalc();
+            pendingRestoreData = null;
+            closeModal('modal-restore');
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // PROJECT SAVE / LOAD (localStorage)
+        // ════════════════════════════════════════════════════════════════════════
+
+        function getProjects() {
+            try {
+                return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            } catch(e) {
+                return {};
+            }
+        }
+
+        function setProjects(projects) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+                return true;
+            } catch(e) {
+                alert('Fehler beim Speichern: ' + e.message);
+                return false;
+            }
+        }
+
+        function toggleFastestRoute() {
+            const isFastest = document.getElementById('opt-fastest').checked;
+            const curvyContainer = document.getElementById('curvy-container');
+            const highwayOpt = document.getElementById('opt-no-highway');
+            
+            if (isFastest) {
+                curvyContainer.style.opacity = '0.4';
+                curvyContainer.style.pointerEvents = 'none';
+                highwayOpt.checked = false;
+            } else {
+                curvyContainer.style.opacity = '1';
+                curvyContainer.style.pointerEvents = 'auto';
+                highwayOpt.checked = true;
+            }
+            triggerAutoCalc();
+        }
+
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-        // Clear All with Confirmation
         function executeClearAll() {
             waypoints = [];
             renderWaypoints();
@@ -273,34 +402,44 @@
             closeModal('modal-confirm-delete');
         }
 
-        // Project Management Logic
         function executeSave() {
             const name = document.getElementById('save-project-name').value.trim();
-            if (!name) return;
-            
-            const projects = JSON.parse(localStorage.getItem('rideplan_projects') || '{}');
-            projects[name] = { startPt, endPt, waypoints, date: new Date().toLocaleString('de-DE') };
-            localStorage.setItem('rideplan_projects', JSON.stringify(projects));
-            
-            document.getElementById('save-project-name').value = "";
-            closeModal('modal-save');
+            if (!name) {
+                document.getElementById('save-project-name').focus();
+                return;
+            }
+            const projects = getProjects();
+            projects[name] = {
+                startPt,
+                endPt,
+                waypoints,
+                date: new Date().toLocaleString('de-DE')
+            };
+            if (setProjects(projects)) {
+                document.getElementById('save-project-name').value = "";
+                closeModal('modal-save');
+                // Show brief confirmation
+                const btn = document.querySelector('#modal-save button:last-child');
+                const origText = btn.innerText;
+                btn.innerText = '✓ Gespeichert!';
+                setTimeout(() => { btn.innerText = origText; }, 1500);
+            }
         }
 
         function openLoadList() {
             const list = document.getElementById('project-list');
-            const projects = JSON.parse(localStorage.getItem('rideplan_projects') || '{}');
+            const projects = getProjects();
             const keys = Object.keys(projects);
-            
             if (keys.length === 0) {
                 list.innerHTML = '<p class="text-zinc-500 text-xs text-center py-4">Keine gespeicherten Projekte gefunden.</p>';
             } else {
                 list.innerHTML = keys.map(k => `
                     <div class="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 hover:border-orange-500/50 transition-colors">
-                        <div class="cursor-pointer flex-1" onclick="loadSelectedProject('${k}')">
+                        <div class="cursor-pointer flex-1" onclick="loadSelectedProject('${k.replace(/'/g, "\\'")}')">
                             <div class="text-sm font-bold">${k}</div>
                             <div class="text-[10px] text-zinc-500">${projects[k].date}</div>
                         </div>
-                        <button onclick="deleteProject('${k}')" class="text-zinc-600 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button onclick="deleteProject('${k.replace(/'/g, "\\'")}'); event.stopPropagation();" class="text-zinc-600 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 `).join('');
             }
@@ -309,43 +448,34 @@
         }
 
         function loadSelectedProject(name) {
-            const projects = JSON.parse(localStorage.getItem('rideplan_projects') || '{}');
+            const projects = getProjects();
             const data = projects[name];
             if (data) {
-                startPt = data.startPt; endPt = data.endPt; waypoints = data.waypoints;
+                startPt = data.startPt || null;
+                endPt = data.endPt || null;
+                waypoints = data.waypoints || [];
                 document.getElementById('start-input').value = startPt ? startPt.name : '';
                 document.getElementById('end-input').value = endPt ? endPt.name : '';
-                renderWaypoints(); 
-                updateMarkers(); 
+                renderWaypoints();
+                updateMarkers();
+                fitMapToPoints();
                 triggerAutoCalc();
                 closeModal('modal-load');
             }
         }
 
         function deleteProject(name) {
-            const projects = JSON.parse(localStorage.getItem('rideplan_projects') || '{}');
+            const projects = getProjects();
             delete projects[name];
-            localStorage.setItem('rideplan_projects', JSON.stringify(projects));
+            setProjects(projects);
             openLoadList();
         }
 
         function triggerAutoCalc() {
+            saveSession(); // Auto-save session state on every change
             if (!startPt || !endPt) return;
             clearTimeout(autoCalcTimeout);
             autoCalcTimeout = setTimeout(() => { calculateRoute(); }, 800);
-        }
-
-        function getDistance(p1, p2) {
-            if (!p1 || !p2) return 999999;
-            const rad = Math.PI / 180;
-            const a = Math.sin((p2.lat - p1.lat) * rad / 2) ** 2 + Math.cos(p1.lat * rad) * Math.cos(p2.lat * rad) * Math.sin((p2.lng - p1.lng) * rad / 2) ** 2;
-            return 12742 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        }
-
-        function autoSortWaypoints() {
-            if (!startPt) return;
-            waypoints.sort((a, b) => getDistance(startPt, a) - getDistance(startPt, b));
-            renderWaypoints();
         }
 
         function toggleSidebar() {
@@ -363,18 +493,40 @@
             const resDiv = document.getElementById(resId);
             if (query.length < 2) { resDiv.classList.add('hidden'); return; }
 
+            const coordRegex = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
+            let coordHTML = "";
+            const quickMatch = query.match(/^([-+]?\d+\.\d+),\s*([-+]?\d+\.\d+)$/);
+
+            if (coordRegex.test(query) || quickMatch) {
+                const parts = query.split(/[\s,]+/).filter(Boolean);
+                const lat = parseFloat(parts[0]);
+                const lng = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    coordHTML = `<div onclick="selectLoc('${resId}', 'Koordinaten: ${lat}, ${lng}', ${lat}, ${lng}, ${index})" class="p-3 bg-orange-500/20 hover:bg-orange-500 hover:text-black cursor-pointer text-xs font-bold border-b border-orange-500/50 flex items-center gap-2"><i data-lucide="map-pin" class="w-3 h-3"></i> Koordinate verwenden: ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>`;
+                }
+            }
+
             searchTimeout = setTimeout(async () => {
                 try {
                     const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
                     const data = await r.json();
-                    resDiv.innerHTML = data.features.map(f => {
+                    const resultsHTML = data.features.map(f => {
                         const p = f.properties;
                         const label = [p.name, p.city, p.country].filter(Boolean).join(', ');
                         const [lon, lat] = f.geometry.coordinates;
-                        return `<div onclick="selectLoc('${resId}', '${label}', ${lat}, ${lon}, ${index})" class="p-3 hover:bg-orange-500 hover:text-black cursor-pointer text-xs font-bold border-b border-white/5 truncate">${label}</div>`;
+                        return `<div onclick="selectLoc('${resId}', '${label.replace(/'/g, "\\'")}', ${lat}, ${lon}, ${index})" class="p-3 hover:bg-orange-500 hover:text-black cursor-pointer text-xs font-bold border-b border-white/5 truncate">${label}</div>`;
                     }).join('');
+                    
+                    resDiv.innerHTML = coordHTML + resultsHTML;
                     resDiv.classList.remove('hidden');
-                } catch(e) {}
+                    lucide.createIcons();
+                } catch(e) {
+                    if (coordHTML) {
+                        resDiv.innerHTML = coordHTML;
+                        resDiv.classList.remove('hidden');
+                        lucide.createIcons();
+                    }
+                }
             }, 300);
         }
 
@@ -383,22 +535,30 @@
             if (resId === 'start-res') { 
                 startPt = pt; 
                 document.getElementById('start-input').value = name; 
-                autoSortWaypoints(); 
             }
             else if (resId === 'end-res') { 
                 endPt = pt; 
                 document.getElementById('end-input').value = name; 
             }
             else { 
-                waypoints[idx] = pt; 
+                if (idx === -1) {
+                    waypoints.push(pt);
+                } else {
+                    waypoints[idx] = pt; 
+                }
                 renderWaypoints(); 
             }
             document.querySelectorAll('.search-results').forEach(d => d.classList.add('hidden'));
-            updateMarkers(); 
+            updateMarkers();
+
+            // ── Smooth fly-to zoom when a location is selected ──────────────
+            map.flyTo([lat, lng], 13, { animate: true, duration: 1.2 });
+            // ─────────────────────────────────────────────────────────────────
+
             triggerAutoCalc();
         }
 
-        function addWaypoint() { waypoints.push({ name: '', type: 'stop' }); renderWaypoints(); }
+        function addWaypoint() { waypoints.push({ name: '', type: 'stop' }); renderWaypoints(); saveSession(); }
         function removeWaypoint(idx) { waypoints.splice(idx, 1); renderWaypoints(); updateMarkers(); triggerAutoCalc(); }
 
         function renderWaypoints() {
@@ -414,7 +574,7 @@
                 div.innerHTML = `
                     <div class="drag-handle cursor-grab text-zinc-600 hover:text-orange-500"><i data-lucide="grip-vertical" class="w-4 h-4"></i></div>
                     <div class="flex-1 relative">
-                        <input oninput="doSearch(this, 'wp-res-${i}', ${i})" value="${wp?wp.name:''}" placeholder="Zwischenziel..." class="w-full bg-black/40 border border-white/5 rounded p-2 pl-9 pr-8 text-xs outline-none focus:border-orange-500">
+                        <input oninput="doSearch(this, 'wp-res-${i}', ${i})" value="${wp ? wp.name.replace(/"/g, '&quot;') : ''}" placeholder="Zwischenziel..." class="w-full bg-black/40 border border-white/5 rounded p-2 pl-9 pr-8 text-xs outline-none focus:border-orange-500">
                         <div class="absolute left-2.5 top-2 w-4 h-4 bg-orange-500 text-black text-[9px] font-black flex items-center justify-center rounded-full">${i+1}</div>
                         <button onclick="toggleWaypointType(${i})" class="absolute right-2 top-2 p-0.5 rounded ${isVia ? 'bg-zinc-700 text-zinc-400' : 'bg-orange-500/20 text-orange-500'}">
                             <i data-lucide="${isVia ? 'map' : 'map-pin'}" class="w-3.5 h-3.5"></i>
@@ -437,26 +597,20 @@
             const items = Array.from(document.getElementById('waypoint-list').children);
             waypoints = items.map(el => waypoints[parseInt(el.dataset.index)]);
             updateMarkers();
+            saveSession();
         }
 
         function handleMarkerDrag(e, type, index) {
             const newPos = e.target.getLatLng();
-            const coordStr = `${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)}`;
-            
+            const coordStr = `${newPos.lat.toFixed(6)}, ${newPos.lng.toFixed(6)}`;
             if (type === 'start') {
-                startPt.lat = newPos.lat;
-                startPt.lng = newPos.lng;
-                startPt.name = coordStr;
+                startPt.lat = newPos.lat; startPt.lng = newPos.lng; startPt.name = coordStr;
                 document.getElementById('start-input').value = coordStr;
             } else if (type === 'end') {
-                endPt.lat = newPos.lat;
-                endPt.lng = newPos.lng;
-                endPt.name = coordStr;
+                endPt.lat = newPos.lat; endPt.lng = newPos.lng; endPt.name = coordStr;
                 document.getElementById('end-input').value = coordStr;
             } else if (type === 'wp') {
-                waypoints[index].lat = newPos.lat;
-                waypoints[index].lng = newPos.lng;
-                waypoints[index].name = coordStr;
+                waypoints[index].lat = newPos.lat; waypoints[index].lng = newPos.lng; waypoints[index].name = coordStr;
                 renderWaypoints();
             }
             triggerAutoCalc();
@@ -465,38 +619,24 @@
         function updateMarkers() {
             markers.forEach(m => map.removeLayer(m));
             markers = [];
-            
             const createIcon = (color, label, isVia) => L.divIcon({
                 className: 'custom-marker',
                 html: `<div class="marker-drop ${isVia ? 'via-point' : ''}" style="background: ${color};"><span class="marker-label">${label}</span></div>`,
-                iconSize: isVia ? [22, 30] : [30, 42], 
-                iconAnchor: isVia ? [11, 30] : [15, 42]
+                iconSize: isVia ? [22, 30] : [30, 42], iconAnchor: isVia ? [11, 30] : [15, 42]
             });
-
             if (startPt) {
-                const m = L.marker([startPt.lat, startPt.lng], { 
-                    icon: createIcon('#22c55e', 'S'),
-                    draggable: true 
-                }).addTo(map);
+                const m = L.marker([startPt.lat, startPt.lng], { icon: createIcon('#22c55e', 'S'), draggable: true }).addTo(map);
                 m.on('dragend', (e) => handleMarkerDrag(e, 'start'));
                 markers.push(m);
             }
-
             if (endPt) {
-                const m = L.marker([endPt.lat, endPt.lng], { 
-                    icon: createIcon('#ef4444', 'Z'),
-                    draggable: true 
-                }).addTo(map);
+                const m = L.marker([endPt.lat, endPt.lng], { icon: createIcon('#ef4444', 'Z'), draggable: true }).addTo(map);
                 m.on('dragend', (e) => handleMarkerDrag(e, 'end'));
                 markers.push(m);
             }
-
             waypoints.forEach((wp, i) => { 
-                if (wp.lat) {
-                    const m = L.marker([wp.lat, wp.lng], { 
-                        icon: createIcon('#ff9800', i+1, wp.type === 'via'),
-                        draggable: true
-                    }).addTo(map);
+                if (wp && wp.lat) {
+                    const m = L.marker([wp.lat, wp.lng], { icon: createIcon('#ff9800', i+1, wp.type === 'via'), draggable: true }).addTo(map);
                     m.on('dragend', (e) => handleMarkerDrag(e, 'wp', i));
                     markers.push(m); 
                 } 
@@ -508,16 +648,23 @@
             const btn = document.getElementById('calc-btn');
             btn.disabled = true;
             document.getElementById('calc-text').innerText = "Berechne...";
-            
             const pts = [[startPt.lng, startPt.lat], ...waypoints.filter(w => w.lat).map(w => [w.lng, w.lat]), [endPt.lng, endPt.lat]];
+            
+            const isFastestRequested = document.getElementById('opt-fastest').checked;
             const curviness = document.getElementById('opt-curvy').value;
             const avoid = document.getElementById('opt-no-highway').checked ? ["highways"] : [];
             
+            const preference = isFastestRequested ? 'fastest' : (curviness >= 3 ? 'recommended' : 'fastest');
+
             try {
                 const res = await fetch(`https://api.openrouteservice.org/v2/directions/driving-car/geojson`, {
                     method: 'POST',
                     headers: { 'Authorization': API_KEY, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ coordinates: pts, preference: curviness >= 3 ? 'recommended' : 'fastest', options: { avoid_features: avoid } })
+                    body: JSON.stringify({ 
+                        coordinates: pts, 
+                        preference: preference, 
+                        options: { avoid_features: avoid } 
+                    })
                 });
                 const data = await res.json();
                 if (routeLayer) map.removeLayer(routeLayer);
@@ -527,7 +674,9 @@
                 document.getElementById('stat-time').innerText = `${Math.floor(s.duration/3600)}h ${Math.round((s.duration%3600)/60)}m`;
                 document.getElementById('route-stats').classList.remove('hidden');
                 window.currentRouteData = data;
-            } catch(e) {}
+            } catch(e) {
+                console.error('Route konnte nicht berechnet werden:', e);
+            }
             btn.disabled = false;
             document.getElementById('calc-text').innerText = "🚀 Tour berechnen";
         }
@@ -539,7 +688,7 @@
             if (type === 'track') {
                 gpx += `<trk><name>Track</name><trkseg>${coords.map(c => `<trkpt lat="${c[1]}" lon="${c[0]}"></trkpt>`).join('')}</trkseg></trk>`;
             } else {
-                gpx += `<rte><name>Route</name>${[startPt, ...waypoints, endPt].map(p => `<rtept lat="${p.lat}" lon="${p.lng}"><name>${p.name}</name></rtept>`).join('')}</rte>`;
+                gpx += `<rte><name>Route</name>${[startPt, ...waypoints.filter(w=>w.lat), endPt].map(p => `<rtept lat="${p.lat}" lon="${p.lng}"><name>${p.name}</name></rtept>`).join('')}</rte>`;
             }
             gpx += `</gpx>`;
             const blob = new Blob([gpx], { type: 'application/gpx+xml' });
